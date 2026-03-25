@@ -25,6 +25,41 @@ namespace WinFormsLightBlueGlassDemo
 
     public partial class MainForm : Form
     {
+        private readonly struct ThemePalette
+        {
+            public ThemePalette(
+                Color background,
+                Color card,
+                Color cardHover,
+                Color sidebar,
+                Color textPrimary,
+                Color textSecondary,
+                Color textMuted,
+                Color border,
+                Color glass)
+            {
+                Background = background;
+                Card = card;
+                CardHover = cardHover;
+                Sidebar = sidebar;
+                TextPrimary = textPrimary;
+                TextSecondary = textSecondary;
+                TextMuted = textMuted;
+                Border = border;
+                Glass = glass;
+            }
+
+            public Color Background { get; }
+            public Color Card { get; }
+            public Color CardHover { get; }
+            public Color Sidebar { get; }
+            public Color TextPrimary { get; }
+            public Color TextSecondary { get; }
+            public Color TextMuted { get; }
+            public Color Border { get; }
+            public Color Glass { get; }
+        }
+
         // ==================== DWM / Acrylic APIs ====================
         [DllImport("user32.dll")]
         private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
@@ -66,18 +101,36 @@ namespace WinFormsLightBlueGlassDemo
         private static readonly Color AccentGreen = Color.FromArgb(76, 217, 140);     // 强调绿
         private static readonly Color AccentOrange = Color.FromArgb(255, 165, 70);    // 强调橙
         private static readonly Color AccentPink = Color.FromArgb(255, 100, 150);     // 强调粉
-        private static readonly Color TextPrimary = Color.FromArgb(235, 235, 245);    // 主文字
-        private static readonly Color TextSecondary = Color.FromArgb(155, 155, 175);  // 次文字
-        private static readonly Color TextMuted = Color.FromArgb(95, 95, 115);        // 弱文字
-        private static readonly Color BorderColor = Color.FromArgb(50, 50, 75);       // 边框色
-        private static readonly Color GlassWhite = Color.FromArgb(12, 255, 255, 255); // 玻璃白
+        private static readonly ThemePalette DarkTheme = new(
+            BgDark,
+            BgCard,
+            BgCardHover,
+            BgSidebar,
+            Color.FromArgb(235, 235, 245),
+            Color.FromArgb(155, 155, 175),
+            Color.FromArgb(95, 95, 115),
+            Color.FromArgb(50, 50, 75),
+            Color.FromArgb(204, 18, 18, 30));
+        private static readonly ThemePalette LightTheme = new(
+            Color.FromArgb(241, 243, 247),
+            Color.FromArgb(255, 255, 255),
+            Color.FromArgb(246, 248, 251),
+            Color.FromArgb(235, 239, 244),
+            Color.FromArgb(42, 47, 58),
+            Color.FromArgb(96, 106, 122),
+            Color.FromArgb(135, 144, 158),
+            Color.FromArgb(191, 197, 206),
+            Color.FromArgb(110, 232, 236, 242));
 
         // ==================== 动画相关 ====================
         private System.Windows.Forms.Timer _animTimer = null!;
         private float _animProgress = 0f;
         private int _activeNavIndex = 0;
         private readonly List<Panel> _navItems = new List<Panel>();
+        private bool _isDarkTheme = true;
         private Panel _navIndicator = null!;
+        private Panel _sidebar = null!;
+        private Button _themeToggleButton = null!;
 
         public MainForm()
         {
@@ -87,7 +140,7 @@ namespace WinFormsLightBlueGlassDemo
             this.MinimumSize = new Size(1000, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.Sizable;
-            this.BackColor = BgDark;
+            this.BackColor = CurrentTheme.Background;
             this.DoubleBuffered = true;
             this.Font = new Font("Segoe UI", 9F);
             SetStyle(
@@ -97,12 +150,9 @@ namespace WinFormsLightBlueGlassDemo
                 true);
             UpdateStyles();
 
-            // 启用深色标题栏 & 毛玻璃
-            SetDarkTitleBar();
-            EnableAcrylicBlur();
-
             // 构建界面
             BuildLayout();
+            ApplyTheme();
 
             // 入场动画
             _animTimer = new System.Windows.Forms.Timer { Interval = 16 };
@@ -111,12 +161,14 @@ namespace WinFormsLightBlueGlassDemo
         }
 
         // ==================== 启用深色标题栏 (Win11优先) ====================
+        private ThemePalette CurrentTheme => _isDarkTheme ? DarkTheme : LightTheme;
+
         private void SetDarkTitleBar()
         {
             try
             {
                 // DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                int darkMode = 1;
+                int darkMode = _isDarkTheme ? 1 : 0;
                 DwmSetWindowAttribute(this.Handle, 20, ref darkMode, sizeof(int));
 
                 // DWMWA_WINDOW_CORNER_PREFERENCE = 33 (圆角 = 2)
@@ -137,7 +189,7 @@ namespace WinFormsLightBlueGlassDemo
                 {
                     AccentState = 3,
                     AccentFlags = 2,
-                    GradientColor = 0xCC12121Eu  // 深色半透明 → 任何背景都可见!
+                    GradientColor = ToAbgr(CurrentTheme.Glass)
                 };
 
                 int accentSize = Marshal.SizeOf(accent);
@@ -192,6 +244,40 @@ namespace WinFormsLightBlueGlassDemo
             ResumeLayout(false);
         }
 
+        private void ApplyTheme()
+        {
+            var theme = CurrentTheme;
+            BackColor = theme.Background;
+            if (_sidebar != null)
+                _sidebar.BackColor = theme.Sidebar;
+
+            SetDarkTitleBar();
+            EnableAcrylicBlur();
+            UpdateThemeToggleButton();
+            InvalidateControlTree(this);
+        }
+
+        private void UpdateThemeToggleButton()
+        {
+            if (_themeToggleButton == null)
+                return;
+
+            _themeToggleButton.Text = _isDarkTheme ? "☀" : "☾";
+            _themeToggleButton.ForeColor = _isDarkTheme ? AccentOrange : AccentBlue;
+            _themeToggleButton.BackColor = _isDarkTheme
+                ? Color.FromArgb(28, 255, 255, 255)
+                : Color.FromArgb(250, 255, 255, 255);
+            _themeToggleButton.FlatAppearance.BorderColor = _isDarkTheme
+                ? Color.FromArgb(55, 255, 255, 255)
+                : Color.FromArgb(191, 197, 206);
+        }
+
+        private void ToggleTheme()
+        {
+            _isDarkTheme = !_isDarkTheme;
+            ApplyTheme();
+        }
+
         // ==================== 侧栏 ====================
         private Panel CreateSidebar()
         {
@@ -199,9 +285,10 @@ namespace WinFormsLightBlueGlassDemo
             {
                 Dock = DockStyle.Left,
                 Width = 72,
-                BackColor = BgSidebar,
+                BackColor = CurrentTheme.Sidebar,
                 Padding = new Padding(0, 15, 0, 15)
             };
+            _sidebar = sidebar;
 
             // 侧栏绘制
             sidebar.Paint += (s, e) =>
@@ -211,20 +298,24 @@ namespace WinFormsLightBlueGlassDemo
                 g.TextRenderingHint = TextRenderingHint.AntiAlias;
 
                 // 右侧分割线（纯色细线，不用渐变）
-                using var divPen = new Pen(BorderColor, 1);
+                using var divPen = new Pen(CurrentTheme.Border, 1);
                 g.DrawLine(divPen, sidebar.Width - 1, 0, sidebar.Width - 1, sidebar.Height);
 
                 // Logo 区域 — 纯色哑光圆角方块 + 细边框
                 var logoRect = new Rectangle(16, 14, 40, 36);
                 var logoPath = CreateRoundRectPath(logoRect, 10);
-                using var logoBg = new SolidBrush(Color.FromArgb(30, 255, 255, 255));
+                using var logoBg = new SolidBrush(_isDarkTheme
+                    ? Color.FromArgb(30, 255, 255, 255)
+                    : Color.FromArgb(245, 255, 255, 255));
                 g.FillPath(logoBg, logoPath);
-                using var logoBorder = new Pen(Color.FromArgb(45, 255, 255, 255), 1);
+                using var logoBorder = new Pen(_isDarkTheme
+                    ? Color.FromArgb(45, 255, 255, 255)
+                    : CurrentTheme.Border, 1);
                 g.DrawPath(logoBorder, logoPath);
 
                 // Logo 文字
                 using var logoFont = new Font("Segoe UI", 13, FontStyle.Bold);
-                using var logoTextBrush = new SolidBrush(TextPrimary);
+                using var logoTextBrush = new SolidBrush(CurrentTheme.TextPrimary);
                 g.DrawString("G", logoFont, logoTextBrush, 28, 18);
             };
 
@@ -272,21 +363,25 @@ namespace WinFormsLightBlueGlassDemo
                     else if (isHovered)
                         color = Color.FromArgb(210, 210, 225);
                     else
-                        color = TextSecondary;  // 从 TextMuted 提亮到 TextSecondary
+                        color = CurrentTheme.TextSecondary;
 
                     // 悬停/激活背景
                     if (active)
                     {
                         var bgRect = new Rectangle(8, 6, 56, 36);
                         var bgPath = CreateRoundRectPath(bgRect, 10);
-                        using var bgBrush = new SolidBrush(Color.FromArgb(25, AccentBlue));
+                        using var bgBrush = new SolidBrush(_isDarkTheme
+                            ? Color.FromArgb(25, AccentBlue)
+                            : Color.FromArgb(28, AccentBlue));
                         g.FillPath(bgBrush, bgPath);
                     }
                     else if (isHovered)
                     {
                         var bgRect = new Rectangle(8, 6, 56, 36);
                         var bgPath = CreateRoundRectPath(bgRect, 10);
-                        using var bgBrush = new SolidBrush(Color.FromArgb(15, 255, 255, 255));
+                        using var bgBrush = new SolidBrush(_isDarkTheme
+                            ? Color.FromArgb(15, 255, 255, 255)
+                            : Color.FromArgb(220, 255, 255, 255));
                         g.FillPath(bgBrush, bgPath);
                     }
 
@@ -326,6 +421,23 @@ namespace WinFormsLightBlueGlassDemo
                 Padding = new Padding(10, 15, 10, 0)
             };
 
+            _themeToggleButton = new Button
+            {
+                Size = new Size(34, 34),
+                FlatStyle = FlatStyle.Flat,
+                FlatAppearance = { BorderSize = 1 },
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI Symbol", 11F, FontStyle.Regular),
+                TabStop = false,
+                UseVisualStyleBackColor = false
+            };
+            _themeToggleButton.Click += (s, e) => ToggleTheme();
+            header.Controls.Add(_themeToggleButton);
+            header.Resize += (s, e) =>
+            {
+                _themeToggleButton.Location = new Point(header.Width - 98, 46);
+            };
+
             header.Paint += (s, e) =>
             {
                 var g = e.Graphics;
@@ -336,30 +448,33 @@ namespace WinFormsLightBlueGlassDemo
 
                 // 标题
                 using var titleFont = new Font("Segoe UI", 26, FontStyle.Bold);
-                using var titleBrush = new SolidBrush(Color.FromArgb((int)(alpha * 235), TextPrimary));
+                using var titleBrush = new SolidBrush(Color.FromArgb((int)(alpha * 235), CurrentTheme.TextPrimary));
                 g.DrawString("仪表板", titleFont, titleBrush, 10, 15);
 
                 // 副标题
                 using var subFont = new Font("Segoe UI", 11);
-                using var subBrush = new SolidBrush(Color.FromArgb((int)(alpha * 155), TextSecondary));
+                using var subBrush = new SolidBrush(Color.FromArgb((int)(alpha * 155), CurrentTheme.TextSecondary));
                 g.DrawString("欢迎回来！这是你的系统概览。", subFont, subBrush, 12, 58);
 
                 // 右上角 - 时间显示
                 string timeStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
                 var timeSize = g.MeasureString(timeStr, subFont);
-                using var timeBrush = new SolidBrush(Color.FromArgb((int)(alpha * 120), TextSecondary));
-                g.DrawString(timeStr, subFont, timeBrush, header.Width - timeSize.Width - 20, 20);
+                using var timeBrush = new SolidBrush(Color.FromArgb((int)(alpha * 120), CurrentTheme.TextSecondary));
+                g.DrawString(timeStr, subFont, timeBrush, header.Width - timeSize.Width - 112, 20);
 
                 // 右上角 - 用户头像圈（纯色细描边，不用渐变）
                 int avatarX = header.Width - 50;
                 int avatarY = 48;
-                using var avatarPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.5f);
+                using var avatarPen = new Pen(_isDarkTheme
+                    ? Color.FromArgb(60, 255, 255, 255)
+                    : CurrentTheme.Border, 1.5f);
                 g.DrawEllipse(avatarPen, avatarX, avatarY, 32, 32);
                 using var avatarFont = new Font("Segoe UI", 11, FontStyle.Bold);
-                using var avatarTextBrush = new SolidBrush(TextSecondary);
+                using var avatarTextBrush = new SolidBrush(CurrentTheme.TextSecondary);
                 g.DrawString("A", avatarFont, avatarTextBrush, avatarX + 9, avatarY + 6);
             };
 
+            UpdateThemeToggleButton();
             return header;
         }
 
@@ -408,7 +523,9 @@ namespace WinFormsLightBlueGlassDemo
 
                     // 玻璃卡片背景
                     var cardPath = CreateRoundRectPath(rect, 16);
-                    using var cardBrush = new SolidBrush(Color.FromArgb(Math.Min(255, (int)(eased * 180)), BgCard));
+                    using var cardBrush = new SolidBrush(_isDarkTheme
+                        ? Color.FromArgb(Math.Min(255, (int)(eased * 180)), CurrentTheme.Card)
+                        : CurrentTheme.Card);
                     g.FillPath(cardBrush, cardPath);
 
                     // 顶部强调色条
@@ -420,7 +537,9 @@ namespace WinFormsLightBlueGlassDemo
                     g.FillPath(accentBrush, topBarPath);
 
                     // 边框（微弱发光）
-                    using var borderPen = new Pen(Color.FromArgb(Math.Min(30, alpha / 8), 255, 255, 255), 1);
+                    using var borderPen = new Pen(_isDarkTheme
+                        ? Color.FromArgb(Math.Min(30, alpha / 8), 255, 255, 255)
+                        : CurrentTheme.Border, 1);
                     g.DrawPath(borderPen, cardPath);
 
                     if (alpha < 10) continue;
@@ -428,7 +547,9 @@ namespace WinFormsLightBlueGlassDemo
                     // 图标背景圈
                     int iconBgSize = 40;
                     var iconBgRect = new Rectangle(rect.X + 20, rect.Y + 22, iconBgSize, iconBgSize);
-                    using var iconBgBrush = new SolidBrush(Color.FromArgb(Math.Min(30, alpha / 8), cardData[i].Color));
+                    using var iconBgBrush = new SolidBrush(_isDarkTheme
+                        ? Color.FromArgb(Math.Min(30, alpha / 8), cardData[i].Color)
+                        : Color.FromArgb(28, cardData[i].Color));
                     var iconBgPath = CreateRoundRectPath(iconBgRect, 12);
                     g.FillPath(iconBgBrush, iconBgPath);
 
@@ -439,17 +560,17 @@ namespace WinFormsLightBlueGlassDemo
 
                     // 数值
                     using var valueFont = new Font("Segoe UI", 22, FontStyle.Bold);
-                    using var valueBrush = new SolidBrush(Color.FromArgb(Math.Min(235, alpha), TextPrimary));
+                    using var valueBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(235, alpha) : Math.Min(255, alpha), CurrentTheme.TextPrimary));
                     g.DrawString(cardData[i].Value, valueFont, valueBrush, rect.X + 20, rect.Y + 72);
 
                     // 标题
                     using var labelFont = new Font("Segoe UI", 9);
-                    using var labelBrush = new SolidBrush(Color.FromArgb(Math.Min(155, alpha), TextSecondary));
+                    using var labelBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(155, alpha) : Math.Min(220, alpha), CurrentTheme.TextSecondary));
                     g.DrawString(cardData[i].Title, labelFont, labelBrush, rect.X + 20, rect.Y + 108);
 
                     // 子文本
                     using var subFont = new Font("Segoe UI", 8);
-                    using var subBrush = new SolidBrush(Color.FromArgb(Math.Min(140, alpha), cardData[i].Color));
+                    using var subBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(140, alpha) : Math.Min(200, alpha), cardData[i].Color));
                     g.DrawString(cardData[i].Sub, subFont, subBrush, rect.X + 20, rect.Y + 126);
                 }
             };
@@ -486,20 +607,26 @@ namespace WinFormsLightBlueGlassDemo
                 // ===== 左侧：活动日志面板 =====
                 var leftRect = new Rectangle(10, 10, leftW, panelH);
                 var leftPath = CreateRoundRectPath(leftRect, 16);
-                using (var bgBrush = new SolidBrush(Color.FromArgb(Math.Min(160, (int)(eased * 160)), BgCard)))
+                using (var bgBrush = new SolidBrush(_isDarkTheme
+                    ? Color.FromArgb(Math.Min(210, (int)(eased * 180)), CurrentTheme.Card)
+                    : CurrentTheme.Card))
                     g.FillPath(bgBrush, leftPath);
-                using (var borderPen = new Pen(Color.FromArgb(Math.Min(25, alpha / 10), 255, 255, 255), 1))
+                using (var borderPen = new Pen(_isDarkTheme
+                    ? Color.FromArgb(Math.Min(25, alpha / 10), 255, 255, 255)
+                    : CurrentTheme.Border, 1))
                     g.DrawPath(borderPen, leftPath);
 
                 if (alpha > 10)
                 {
                     // 面板标题
                     using var panelTitleFont = new Font("Segoe UI", 14, FontStyle.Bold);
-                    using var panelTitleBrush = new SolidBrush(Color.FromArgb(Math.Min(235, alpha), TextPrimary));
-                    g.DrawString("📋 最近活动", panelTitleFont, panelTitleBrush, leftRect.X + 24, leftRect.Y + 18);
+                    using var panelTitleBrush = new SolidBrush(Color.FromArgb(Math.Min(235, alpha), CurrentTheme.TextPrimary));
+                    g.DrawString("最近活动", panelTitleFont, panelTitleBrush, leftRect.X + 24, leftRect.Y + 18);
 
                     // 分割线
-                    using var dividerPen = new Pen(Color.FromArgb(Math.Min(40, alpha / 6), 255, 255, 255), 1);
+                    using var dividerPen = new Pen(_isDarkTheme
+                        ? Color.FromArgb(Math.Min(40, alpha / 6), 255, 255, 255)
+                        : CurrentTheme.Border, 1);
                     g.DrawLine(dividerPen, leftRect.X + 24, leftRect.Y + 52, leftRect.Right - 24, leftRect.Y + 52);
 
                     // 日志条目
@@ -530,7 +657,9 @@ namespace WinFormsLightBlueGlassDemo
                         {
                             var rowRect = new Rectangle(leftRect.X + 12, logY, leftW - 24, logH);
                             var rowPath = CreateRoundRectPath(rowRect, 8);
-                            using var rowBrush = new SolidBrush(Color.FromArgb(Math.Min(15, logAlpha / 16), 255, 255, 255));
+                            using var rowBrush = new SolidBrush(_isDarkTheme
+                                ? Color.FromArgb(Math.Min(15, logAlpha / 16), 255, 255, 255)
+                                : CurrentTheme.CardHover);
                             g.FillPath(rowBrush, rowPath);
                         }
 
@@ -541,14 +670,14 @@ namespace WinFormsLightBlueGlassDemo
 
                         // 日志文本
                         using var logFont = new Font("Segoe UI", 10);
-                        using var logBrush = new SolidBrush(Color.FromArgb(Math.Min(210, logAlpha), TextPrimary));
+                        using var logBrush = new SolidBrush(Color.FromArgb(Math.Min(210, logAlpha), CurrentTheme.TextPrimary));
                         g.DrawString(logs[i].Text, logFont, logBrush, leftRect.X + 52, logY + (logH - 16) / 2);
 
                         // 时间
                         using var timeFont = new Font("Segoe UI", 9);
                         string timeStr = logs[i].Time;
                         var timeSize = g.MeasureString(timeStr, timeFont);
-                        using var timeBrush = new SolidBrush(Color.FromArgb(Math.Min(120, logAlpha), TextMuted));
+                        using var timeBrush = new SolidBrush(Color.FromArgb(Math.Min(120, logAlpha), CurrentTheme.TextMuted));
                         g.DrawString(timeStr, timeFont, timeBrush, leftRect.Right - timeSize.Width - 24, logY + (logH - 14) / 2);
 
                         logY += logH;
@@ -558,18 +687,24 @@ namespace WinFormsLightBlueGlassDemo
                 // ===== 右侧：快捷操作面板 =====
                 var rightRect = new Rectangle(10 + leftW + 15, 10, rightW, panelH);
                 var rightPath = CreateRoundRectPath(rightRect, 16);
-                using (var bgBrush = new SolidBrush(Color.FromArgb(Math.Min(160, (int)(eased * 160)), BgCard)))
+                using (var bgBrush = new SolidBrush(_isDarkTheme
+                    ? Color.FromArgb(Math.Min(210, (int)(eased * 180)), CurrentTheme.Card)
+                    : CurrentTheme.Card))
                     g.FillPath(bgBrush, rightPath);
-                using (var borderPen = new Pen(Color.FromArgb(Math.Min(25, alpha / 10), 255, 255, 255), 1))
+                using (var borderPen = new Pen(_isDarkTheme
+                    ? Color.FromArgb(Math.Min(25, alpha / 10), 255, 255, 255)
+                    : CurrentTheme.Border, 1))
                     g.DrawPath(borderPen, rightPath);
 
                 if (alpha > 10)
                 {
                     using var rtFont = new Font("Segoe UI", 14, FontStyle.Bold);
-                    using var rtBrush = new SolidBrush(Color.FromArgb(Math.Min(235, alpha), TextPrimary));
-                    g.DrawString("⚡ 快捷操作", rtFont, rtBrush, rightRect.X + 24, rightRect.Y + 18);
+                    using var rtBrush = new SolidBrush(Color.FromArgb(Math.Min(235, alpha), CurrentTheme.TextPrimary));
+                    g.DrawString("快捷操作", rtFont, rtBrush, rightRect.X + 24, rightRect.Y + 18);
 
-                    using var divPen = new Pen(Color.FromArgb(Math.Min(40, alpha / 6), 255, 255, 255), 1);
+                    using var divPen = new Pen(_isDarkTheme
+                        ? Color.FromArgb(Math.Min(40, alpha / 6), 255, 255, 255)
+                        : CurrentTheme.Border, 1);
                     g.DrawLine(divPen, rightRect.X + 24, rightRect.Y + 52, rightRect.Right - 24, rightRect.Y + 52);
 
                     // 操作按钮
@@ -598,13 +733,25 @@ namespace WinFormsLightBlueGlassDemo
                         var btnPath = CreateRoundRectPath(btnRect, 12);
 
                         // 渐变按钮背景
-                        using var btnGradient = new LinearGradientBrush(btnRect,
-                            Color.FromArgb(Math.Min(35, btnAlpha / 7), actions[i].Color1),
-                            Color.FromArgb(Math.Min(15, btnAlpha / 16), actions[i].Color2), 0f);
-                        g.FillPath(btnGradient, btnPath);
+                        if (_isDarkTheme)
+                        {
+                            using var btnGradient = new LinearGradientBrush(btnRect,
+                                Color.FromArgb(Math.Min(35, btnAlpha / 7), actions[i].Color1),
+                                Color.FromArgb(Math.Min(15, btnAlpha / 16), actions[i].Color2), 0f);
+                            g.FillPath(btnGradient, btnPath);
+                        }
+                        else
+                        {
+                            using var btnBg = new SolidBrush(Color.FromArgb(252, 255, 255, 255));
+                            g.FillPath(btnBg, btnPath);
+                            using var btnTint = new SolidBrush(Color.FromArgb(16, actions[i].Color1));
+                            g.FillPath(btnTint, btnPath);
+                        }
 
                         // 边框
-                        using var btnBorderPen = new Pen(Color.FromArgb(Math.Min(50, btnAlpha / 5), actions[i].Color1), 1);
+                        using var btnBorderPen = new Pen(_isDarkTheme
+                            ? Color.FromArgb(Math.Min(50, btnAlpha / 5), actions[i].Color1)
+                            : Color.FromArgb(170, actions[i].Color1), 1);
                         g.DrawPath(btnBorderPen, btnPath);
 
                         // 图标
@@ -614,12 +761,12 @@ namespace WinFormsLightBlueGlassDemo
 
                         // 文字
                         using var btnTextFont = new Font("Segoe UI", 11, FontStyle.Bold);
-                        using var btnTextBrush = new SolidBrush(Color.FromArgb(Math.Min(220, btnAlpha), TextPrimary));
+                        using var btnTextBrush = new SolidBrush(Color.FromArgb(Math.Min(220, btnAlpha), CurrentTheme.TextPrimary));
                         g.DrawString(actions[i].Text, btnTextFont, btnTextBrush, btnRect.X + 48, btnRect.Y + (btnRect.Height - 18) / 2);
 
                         // 箭头
                         using var arrowFont = new Font("Segoe UI", 11);
-                        using var arrowBrush = new SolidBrush(Color.FromArgb(Math.Min(100, btnAlpha), TextMuted));
+                        using var arrowBrush = new SolidBrush(Color.FromArgb(Math.Min(100, btnAlpha), CurrentTheme.TextMuted));
                         g.DrawString("→", arrowFont, arrowBrush, btnRect.Right - 30, btnRect.Y + (btnRect.Height - 18) / 2);
 
                         btnY += btnH;
@@ -659,6 +806,18 @@ namespace WinFormsLightBlueGlassDemo
             path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        private static uint ToAbgr(Color color)
+        {
+            return (uint)(color.A << 24 | color.B << 16 | color.G << 8 | color.R);
+        }
+
+        private static void InvalidateControlTree(Control root)
+        {
+            root.Invalidate(true);
+            foreach (Control child in root.Controls)
+                InvalidateControlTree(child);
         }
 
         private static float EaseOutCubic(float t)
