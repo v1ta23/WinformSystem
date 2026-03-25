@@ -8,6 +8,21 @@ using System.Collections.Generic;
 
 namespace WinFormsLightBlueGlassDemo
 {
+    internal sealed class BufferedPanel : Panel
+    {
+        public BufferedPanel()
+        {
+            SetStyle(
+                ControlStyles.UserPaint |
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.ResizeRedraw,
+                true);
+            DoubleBuffered = true;
+            UpdateStyles();
+        }
+    }
+
     public partial class MainForm : Form
     {
         // ==================== DWM / Acrylic APIs ====================
@@ -75,6 +90,12 @@ namespace WinFormsLightBlueGlassDemo
             this.BackColor = BgDark;
             this.DoubleBuffered = true;
             this.Font = new Font("Segoe UI", 9F);
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.ResizeRedraw,
+                true);
+            UpdateStyles();
 
             // 启用深色标题栏 & 毛玻璃
             SetDarkTitleBar();
@@ -139,8 +160,10 @@ namespace WinFormsLightBlueGlassDemo
         // ==================== 构建主布局 ====================
         private void BuildLayout()
         {
+            SuspendLayout();
+
             // 右侧主区域（先添加 Fill，再添加 Left，WinForms 按逆序 Dock）
-            var mainArea = new Panel
+            var mainArea = new BufferedPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent,
@@ -148,6 +171,7 @@ namespace WinFormsLightBlueGlassDemo
             };
 
             // 底部内容区（Fill 面板要最先加入 mainArea）
+            mainArea.SuspendLayout();
             var bottomPanel = CreateBottomArea();
             mainArea.Controls.Add(bottomPanel);
 
@@ -164,12 +188,14 @@ namespace WinFormsLightBlueGlassDemo
             // 左侧导航栏（后添加 → Dock 优先级更高 → 不被遮挡）
             var sidebar = CreateSidebar();
             this.Controls.Add(sidebar);
+            mainArea.ResumeLayout(false);
+            ResumeLayout(false);
         }
 
         // ==================== 侧栏 ====================
         private Panel CreateSidebar()
         {
-            var sidebar = new Panel
+            var sidebar = new BufferedPanel
             {
                 Dock = DockStyle.Left,
                 Width = 72,
@@ -219,7 +245,7 @@ namespace WinFormsLightBlueGlassDemo
             {
                 int idx = i;
                 bool isHovered = false;
-                var navBtn = new Panel
+                var navBtn = new BufferedPanel
                 {
                     Size = new Size(72, 48),
                     Location = new Point(0, 65 + i * 52),
@@ -292,7 +318,7 @@ namespace WinFormsLightBlueGlassDemo
         // ==================== 顶部标题 ====================
         private Panel CreateHeader()
         {
-            var header = new Panel
+            var header = new BufferedPanel
             {
                 Dock = DockStyle.Top,
                 Height = 100,
@@ -334,14 +360,13 @@ namespace WinFormsLightBlueGlassDemo
                 g.DrawString("A", avatarFont, avatarTextBrush, avatarX + 9, avatarY + 6);
             };
 
-            header.Resize += (s, e) => header.Invalidate();
             return header;
         }
 
         // ==================== 统计卡片区 ====================
         private Panel CreateCardsArea()
         {
-            var container = new Panel
+            var container = new BufferedPanel
             {
                 Dock = DockStyle.Top,
                 Height = 190,
@@ -429,14 +454,13 @@ namespace WinFormsLightBlueGlassDemo
                 }
             };
 
-            container.Resize += (s, e) => container.Invalidate();
             return container;
         }
 
         // ==================== 底部内容区 ====================
         private Panel CreateBottomArea()
         {
-            var bottom = new Panel
+            var bottom = new BufferedPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent,
@@ -603,7 +627,6 @@ namespace WinFormsLightBlueGlassDemo
                 }
             };
 
-            bottom.Resize += (s, e) => bottom.Invalidate();
             return bottom;
         }
 
@@ -616,24 +639,12 @@ namespace WinFormsLightBlueGlassDemo
                 this.Invalidate(true);
 
                 // 通知所有子面板重绘
-                foreach (Control c in this.Controls)
-                {
-                    c.Invalidate(true);
-                    foreach (Control cc in c.Controls)
-                        cc.Invalidate(true);
-                }
             }
             else
             {
                 _animProgress = 1.0f;
                 _animTimer.Stop();
                 this.Invalidate(true);
-                foreach (Control c in this.Controls)
-                {
-                    c.Invalidate(true);
-                    foreach (Control cc in c.Controls)
-                        cc.Invalidate(true);
-                }
             }
         }
 
@@ -656,14 +667,5 @@ namespace WinFormsLightBlueGlassDemo
         }
 
         // 双缓冲减少闪烁
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                var cp = base.CreateParams;
-                cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
-                return cp;
-            }
-        }
     }
 }
