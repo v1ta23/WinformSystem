@@ -531,31 +531,54 @@ namespace WinFormsLightBlueGlassDemo
                     int alpha = (int)(eased * 255);
 
                     var rect = new Rectangle(x, y + offsetY, cardWidth, cardHeight);
-                    if (!_isDarkTheme)
-                        DrawLightSurfaceShadow(g, rect, 16);
-                    else
+                    if (_isDarkTheme)
+                    {
                         DrawDarkSurfaceShadow(g, rect, 16);
+                        
+                        var cardPath = CreateRoundRectPath(rect, 16);
+                        using var cardBrush = new SolidBrush(Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card));
+                        g.FillPath(cardBrush, cardPath);
+                        
+                        // 顶部强调色条
+                        var topBarRect = new Rectangle(rect.X, rect.Y, rect.Width, 3);
+                        var topBarPath = CreateRoundRectPath(topBarRect, 2);
+                        using var accentBrush = new LinearGradientBrush(topBarRect,
+                            Color.FromArgb(Math.Min(255, alpha), cardData[i].Color),
+                            Color.FromArgb(Math.Min(150, alpha / 2), cardData[i].Color), 0f);
+                        g.FillPath(accentBrush, topBarPath);
 
-                    // 玻璃卡片背景
-                    var cardPath = CreateRoundRectPath(rect, 16);
-                    using var cardBrush = new SolidBrush(_isDarkTheme
-                        ? Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card)
-                        : CurrentTheme.Card);
-                    g.FillPath(cardBrush, cardPath);
+                        // 边框（微弱发光）
+                        using var borderPen = new Pen(Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255), 1.2f);
+                        g.DrawPath(borderPen, cardPath);
+                    }
+                    else
+                    {
+                        // 浅色凹陷效果 (Neumorphic Inset)
+                        var cardPath = CreateRoundRectPath(rect, 16);
+                        
+                        // 凹陷卡片内部拟真微渐变背景 (比主背景深一点过渡到亮一点)
+                        using var cardBrush = new LinearGradientBrush(rect,
+                            Color.FromArgb(215, 220, 230), // 左上暗部
+                            Color.FromArgb(250, 253, 255), // 右下亮部
+                            45f);
+                        g.FillPath(cardBrush, cardPath);
 
-                    // 顶部强调色条
-                    var topBarRect = new Rectangle(rect.X, rect.Y, rect.Width, 3);
-                    var topBarPath = CreateRoundRectPath(topBarRect, 2);
-                    using var accentBrush = new LinearGradientBrush(topBarRect,
-                        Color.FromArgb(Math.Min(255, alpha), cardData[i].Color),
-                        Color.FromArgb(Math.Min(150, alpha / 2), cardData[i].Color), 0f);
-                    g.FillPath(accentBrush, topBarPath);
+                        // 顶部强调色条 (镶嵌在凹槽内的LED灯带感觉)
+                        var topBarRect = new Rectangle(rect.X, rect.Y, rect.Width, 3);
+                        var topBarPath = CreateRoundRectPath(topBarRect, 2);
+                        using var accentBrush = new LinearGradientBrush(topBarRect,
+                            Color.FromArgb(Math.Min(255, alpha), cardData[i].Color),
+                            Color.FromArgb(Math.Min(150, alpha / 2), cardData[i].Color), 0f);
+                        g.FillPath(accentBrush, topBarPath);
 
-                    // 边框（微弱发光）
-                    using var borderPen = new Pen(_isDarkTheme
-                        ? Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255)
-                        : CurrentTheme.Border, 1.2f);
-                    g.DrawPath(borderPen, cardPath);
+                        // 凹陷内阴影和高光边框模拟
+                        using var borderBrush = new LinearGradientBrush(rect,
+                            Color.FromArgb(150, 165, 185), // 左上受阴缘
+                            Color.FromArgb(255, 255, 255), // 右下受光缘
+                            45f);
+                        using var borderPen = new Pen(borderBrush, 1.8f);
+                        g.DrawPath(borderPen, cardPath);
+                    }
 
                     if (alpha < 10) continue;
 
@@ -621,19 +644,29 @@ namespace WinFormsLightBlueGlassDemo
 
                 // ===== 左侧：活动日志面板 =====
                 var leftRect = new Rectangle(10, 10, leftW, panelH);
-                if (!_isDarkTheme)
-                    DrawLightSurfaceShadow(g, leftRect, 16);
-                else
-                    DrawDarkSurfaceShadow(g, leftRect, 16);
                 var leftPath = CreateRoundRectPath(leftRect, 16);
-                using (var bgBrush = new SolidBrush(_isDarkTheme
-                    ? Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card)
-                    : CurrentTheme.Card))
+                if (_isDarkTheme)
+                {
+                    DrawDarkSurfaceShadow(g, leftRect, 16);
+                    using var bgBrush = new SolidBrush(Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card));
                     g.FillPath(bgBrush, leftPath);
-                using (var borderPen = new Pen(_isDarkTheme
-                    ? Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255)
-                    : CurrentTheme.Border, 1.2f))
+                    using var borderPen = new Pen(Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255), 1.2f);
                     g.DrawPath(borderPen, leftPath);
+                }
+                else
+                {
+                    using var bgBrush = new LinearGradientBrush(leftRect,
+                        Color.FromArgb(215, 220, 230),
+                        Color.FromArgb(250, 253, 255),
+                        45f);
+                    g.FillPath(bgBrush, leftPath);
+                    using var borderBrush = new LinearGradientBrush(leftRect,
+                        Color.FromArgb(150, 165, 185),
+                        Color.FromArgb(255, 255, 255),
+                        45f);
+                    using var borderPen = new Pen(borderBrush, 1.8f);
+                    g.DrawPath(borderPen, leftPath);
+                }
 
                 if (alpha > 10)
                 {
@@ -705,19 +738,29 @@ namespace WinFormsLightBlueGlassDemo
 
                 // ===== 右侧：快捷操作面板 =====
                 var rightRect = new Rectangle(10 + leftW + 15, 10, rightW, panelH);
-                if (!_isDarkTheme)
-                    DrawLightSurfaceShadow(g, rightRect, 16);
-                else
-                    DrawDarkSurfaceShadow(g, rightRect, 16);
                 var rightPath = CreateRoundRectPath(rightRect, 16);
-                using (var bgBrush = new SolidBrush(_isDarkTheme
-                    ? Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card)
-                    : CurrentTheme.Card))
+                if (_isDarkTheme)
+                {
+                    DrawDarkSurfaceShadow(g, rightRect, 16);
+                    using var bgBrush = new SolidBrush(Color.FromArgb(Math.Min(255, (int)(eased * 255)), CurrentTheme.Card));
                     g.FillPath(bgBrush, rightPath);
-                using (var borderPen = new Pen(_isDarkTheme
-                    ? Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255)
-                    : CurrentTheme.Border, 1.2f))
+                    using var borderPen = new Pen(Color.FromArgb(Math.Min(80, alpha / 3), 255, 255, 255), 1.2f);
                     g.DrawPath(borderPen, rightPath);
+                }
+                else
+                {
+                    using var bgBrush = new LinearGradientBrush(rightRect,
+                        Color.FromArgb(215, 220, 230),
+                        Color.FromArgb(250, 253, 255),
+                        45f);
+                    g.FillPath(bgBrush, rightPath);
+                    using var borderBrush = new LinearGradientBrush(rightRect,
+                        Color.FromArgb(150, 165, 185),
+                        Color.FromArgb(255, 255, 255),
+                        45f);
+                    using var borderPen = new Pen(borderBrush, 1.8f);
+                    g.DrawPath(borderPen, rightPath);
+                }
 
                 if (alpha > 10)
                 {
