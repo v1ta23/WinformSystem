@@ -301,24 +301,42 @@ namespace WinFormsLightBlueGlassDemo
                 // 右侧分割线（纯色细线，不用渐变）
                 using var divPen = new Pen(CurrentTheme.Border, 1);
                 g.DrawLine(divPen, sidebar.Width - 1, 0, sidebar.Width - 1, sidebar.Height);
-
-                // Logo 区域 — 纯色哑光圆角方块 + 细边框
-                var logoRect = new Rectangle(16, 14, 40, 36);
-                var logoPath = CreateRoundRectPath(logoRect, 10);
-                using var logoBg = new SolidBrush(_isDarkTheme
-                    ? Color.FromArgb(30, 255, 255, 255)
-                    : Color.FromArgb(248, 251, 255));
-                g.FillPath(logoBg, logoPath);
-                using var logoBorder = new Pen(_isDarkTheme
-                    ? Color.FromArgb(45, 255, 255, 255)
-                    : CurrentTheme.Border, 1);
-                g.DrawPath(logoBorder, logoPath);
-
-                // Logo 文字
-                using var logoFont = new Font("Segoe UI", 13, FontStyle.Bold);
-                using var logoTextBrush = new SolidBrush(CurrentTheme.TextPrimary);
-                g.DrawString("G", logoFont, logoTextBrush, 28, 18);
             };
+
+            // 顶部用户头像（原Logo位置）
+            var avatarPanel = new BufferedPanel
+            {
+                Size = new Size(40, 40),
+                Location = new Point(16, 14),
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            avatarPanel.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+                var rect = new Rectangle(0, 0, 39, 39);
+                var path = CreateRoundRectPath(rect, 19);
+
+                using var bgBrush = new SolidBrush(_isDarkTheme 
+                    ? Color.FromArgb(25, 255, 255, 255)
+                    : Color.FromArgb(235, 240, 245));
+                g.FillPath(bgBrush, path);
+
+                using var borderPen = new Pen(_isDarkTheme
+                    ? Color.FromArgb(45, 255, 255, 255)
+                    : CurrentTheme.Border, 1f);
+                g.DrawPath(borderPen, path);
+
+                using var font = new Font("Segoe UI Emoji", 14);
+                string icon = "👤"; 
+                using var textBrush = new SolidBrush(CurrentTheme.TextSecondary);
+                var ts = g.MeasureString(icon, font);
+                g.DrawString(icon, font, textBrush, (40 - ts.Width) / 2, (40 - ts.Height) / 2);
+            };
+            sidebar.Controls.Add(avatarPanel);
 
             // 活动指示器
             _navIndicator = new Panel
@@ -408,46 +426,6 @@ namespace WinFormsLightBlueGlassDemo
                 sidebar.Controls.Add(navBtn);
             }
 
-
-            // 底部用户头像
-            var avatarPanel = new BufferedPanel
-            {
-                Size = new Size(40, 40),
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand
-            };
-            avatarPanel.Paint += (s, e) =>
-            {
-                var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-                var rect = new Rectangle(0, 0, 39, 39);
-                var path = CreateRoundRectPath(rect, 19);
-
-                using var bgBrush = new SolidBrush(_isDarkTheme 
-                    ? Color.FromArgb(25, 255, 255, 255)
-                    : Color.FromArgb(235, 240, 245));
-                g.FillPath(bgBrush, path);
-
-                using var borderPen = new Pen(_isDarkTheme
-                    ? Color.FromArgb(45, 255, 255, 255)
-                    : CurrentTheme.Border, 1f);
-                g.DrawPath(borderPen, path);
-
-                using var font = new Font("Segoe UI Emoji", 14);
-                string icon = "👤"; 
-                using var textBrush = new SolidBrush(CurrentTheme.TextSecondary);
-                var ts = g.MeasureString(icon, font);
-                g.DrawString(icon, font, textBrush, (40 - ts.Width) / 2, (40 - ts.Height) / 2);
-            };
-            sidebar.Controls.Add(avatarPanel);
-            
-            sidebar.Resize += (s, e) =>
-            {
-                avatarPanel.Location = new Point((sidebar.Width - 40) / 2, sidebar.Height - 60);
-            };
-
             return sidebar;
         }
 
@@ -464,10 +442,15 @@ namespace WinFormsLightBlueGlassDemo
 
             _themeToggleButton = new BufferedPanel
             {
-                Size = new Size(40, 40),
+                Size = new Size(40, 44),
                 Cursor = Cursors.Hand,
                 BackColor = Color.Transparent
             };
+
+            bool isThemeHovered = false;
+            _themeToggleButton.MouseEnter += (s, e) => { isThemeHovered = true; _themeToggleButton.Invalidate(); };
+            _themeToggleButton.MouseLeave += (s, e) => { isThemeHovered = false; _themeToggleButton.Invalidate(); };
+
             _themeToggleButton.Click += (s, e) => ToggleTheme();
             _themeToggleButton.Paint += (s, e) =>
             {
@@ -475,16 +458,27 @@ namespace WinFormsLightBlueGlassDemo
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-                var rect = new Rectangle(0, 0, 39, 39);
+                int yOffset = isThemeHovered ? 0 : 3;
+                var rect = new Rectangle(0, yOffset, 39, 39);
+
+                // 绘制投影效果（仅在悬停空间内出现）
+                if (isThemeHovered)
+                {
+                    var shadowRect = new Rectangle(0, 4, 39, 39);
+                    var shadowPath = CreateRoundRectPath(shadowRect, 8);
+                    using var shadowBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? 20 : 15, 0, 0, 0));
+                    g.FillPath(shadowBrush, shadowPath);
+                }
+
                 var path = CreateRoundRectPath(rect, 8);
                 
                 using var bgBrush = new SolidBrush(_isDarkTheme
-                    ? Color.FromArgb(40, 255, 255, 255)
-                    : Color.FromArgb(245, 250, 255));
+                    ? (isThemeHovered ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(40, 255, 255, 255))
+                    : (isThemeHovered ? Color.FromArgb(255, 255, 255) : Color.FromArgb(245, 250, 255)));
                 g.FillPath(bgBrush, path);
 
                 using var borderPen = new Pen(_isDarkTheme
-                    ? Color.FromArgb(60, 255, 255, 255)
+                    ? (isThemeHovered ? Color.FromArgb(80, 255, 255, 255) : Color.FromArgb(60, 255, 255, 255))
                     : CurrentTheme.Border, 1.2f);
                 g.DrawPath(borderPen, path);
 
@@ -493,12 +487,12 @@ namespace WinFormsLightBlueGlassDemo
                 using var font = new Font("Segoe UI Symbol", 13F, FontStyle.Regular);
                 using var iconBrush = new SolidBrush(iconColor);
                 var ts = g.MeasureString(icon, font);
-                g.DrawString(icon, font, iconBrush, (40 - ts.Width) / 2 + 1, (40 - ts.Height) / 2 + 1);
+                g.DrawString(icon, font, iconBrush, (40 - ts.Width) / 2 + 1, yOffset + (40 - ts.Height) / 2 + 1);
             };
             header.Controls.Add(_themeToggleButton);
             header.Resize += (s, e) =>
             {
-                _themeToggleButton.Location = new Point(header.Width - 55, 12);
+                _themeToggleButton.Location = new Point(header.Width - 55, 9);
             };
 
             header.Paint += (s, e) =>
