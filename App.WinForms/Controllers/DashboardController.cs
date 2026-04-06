@@ -47,7 +47,7 @@ internal sealed class DashboardController
 
         return new DashboardViewModel
         {
-            HeaderTitle = "巡检工作台",
+            HeaderTitle = "巡检总览",
             HeaderSubtitle = $"{account}，今天已完成 {todayRecords.Count} 条巡检，待闭环 {pendingRecords.Count} 条。",
             Cards =
             [
@@ -56,7 +56,7 @@ internal sealed class DashboardController
                     Title = "今日巡检",
                     Value = todayRecords.Count.ToString(),
                     Detail = $"正常 {todayNormalCount} / 预警 {todayWarningCount}",
-                    Icon = "T",
+                    Icon = "巡检",
                     AccentColor = MapAccent("blue"),
                     NavigationTarget = DashboardNavigationTarget.InspectionToday
                 },
@@ -65,7 +65,7 @@ internal sealed class DashboardController
                     Title = "待闭环",
                     Value = pendingRecords.Count.ToString(),
                     Detail = $"异常 {pendingAbnormalCount} 条待处理",
-                    Icon = "P",
+                    Icon = "闭环",
                     AccentColor = MapAccent("orange"),
                     NavigationTarget = DashboardNavigationTarget.InspectionPending
                 },
@@ -74,7 +74,7 @@ internal sealed class DashboardController
                     Title = "今日异常",
                     Value = todayAbnormalCount.ToString(),
                     Detail = $"预警 {todayWarningCount} 条",
-                    Icon = "A",
+                    Icon = "异常",
                     AccentColor = MapAccent("pink"),
                     NavigationTarget = DashboardNavigationTarget.InspectionAbnormal
                 },
@@ -85,7 +85,7 @@ internal sealed class DashboardController
                     Detail = todayRecords.Count == 0
                         ? "今天还没有巡检记录"
                         : $"总数 {todayRecords.Count}，正常 {todayNormalCount}",
-                    Icon = "%",
+                    Icon = "合格率",
                     AccentColor = MapAccent("green"),
                     NavigationTarget = DashboardNavigationTarget.Analytics
                 }
@@ -117,7 +117,7 @@ internal sealed class DashboardController
                 new DashboardQuickActionViewModel
                 {
                     Text = "新增点检",
-                    Icon = "+",
+                    Icon = "新增",
                     PrimaryAccent = MapAccent("blue"),
                     SecondaryAccent = MapAccent("cyan"),
                     NavigationTarget = DashboardNavigationTarget.InspectionCreate
@@ -125,7 +125,7 @@ internal sealed class DashboardController
                 new DashboardQuickActionViewModel
                 {
                     Text = "处理待闭环",
-                    Icon = "!",
+                    Icon = "闭环",
                     PrimaryAccent = MapAccent("orange"),
                     SecondaryAccent = MapAccent("pink"),
                     NavigationTarget = DashboardNavigationTarget.InspectionPending
@@ -133,7 +133,7 @@ internal sealed class DashboardController
                 new DashboardQuickActionViewModel
                 {
                     Text = "查看异常",
-                    Icon = "A",
+                    Icon = "异常",
                     PrimaryAccent = MapAccent("pink"),
                     SecondaryAccent = MapAccent("purple"),
                     NavigationTarget = DashboardNavigationTarget.InspectionAbnormal
@@ -141,7 +141,7 @@ internal sealed class DashboardController
                 new DashboardQuickActionViewModel
                 {
                     Text = "统计分析",
-                    Icon = "#",
+                    Icon = "统计",
                     PrimaryAccent = MapAccent("green"),
                     SecondaryAccent = MapAccent("cyan"),
                     NavigationTarget = DashboardNavigationTarget.Analytics

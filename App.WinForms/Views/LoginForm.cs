@@ -176,6 +176,13 @@ internal sealed class LoginForm : Form
         }
     }
 
+    private enum DashboardCloseMode
+    {
+        ExitApplication,
+        ReturnToLogin,
+        SwitchAccount
+    }
+
     private readonly LoginController _controller;
     private readonly AppCompositionRoot _compositionRoot;
     private readonly TextBox _accountTextBox;
@@ -188,6 +195,8 @@ internal sealed class LoginForm : Form
     private bool _backgroundCacheDirty = true;
     private bool _isInteractiveResize;
     private bool _windowEffectsSuspended;
+    private MainForm? _currentDashboard;
+    private DashboardCloseMode _dashboardCloseMode = DashboardCloseMode.ExitApplication;
 
     public LoginForm(LoginController controller, AppCompositionRoot compositionRoot)
     {
@@ -519,10 +528,98 @@ internal sealed class LoginForm : Form
 
     private void OnLoad(object? sender, EventArgs e)
     {
+        ApplyInitialState();
+    }
+
+    private void ApplyInitialState()
+    {
         var state = _controller.LoadInitialState();
         _accountTextBox.Text = state.Account;
         _passwordTextBox.Text = state.Password;
         _rememberCheckBox.Checked = state.RememberPassword;
+        _showPasswordCheckBox.Checked = false;
+    }
+
+    private void ClearLoginInputs()
+    {
+        _accountTextBox.Clear();
+        _passwordTextBox.Clear();
+        _rememberCheckBox.Checked = false;
+        _showPasswordCheckBox.Checked = false;
+    }
+
+    private void RestoreLoginForm()
+    {
+        _dashboardCloseMode = DashboardCloseMode.ExitApplication;
+        if (WindowState == FormWindowState.Minimized)
+        {
+            WindowState = FormWindowState.Normal;
+        }
+
+        Show();
+        Activate();
+        BringToFront();
+        _accountTextBox.Focus();
+        if (_accountTextBox.TextLength > 0)
+        {
+            _accountTextBox.SelectAll();
+        }
+    }
+
+    private MainForm OpenDashboard(string account)
+    {
+        var dashboard = _compositionRoot.CreateDashboardForm(account);
+        _currentDashboard = dashboard;
+        _dashboardCloseMode = DashboardCloseMode.ExitApplication;
+        dashboard.SwitchAccountRequested += OnDashboardSwitchAccountRequested;
+        dashboard.LogoutRequested += OnDashboardLogoutRequested;
+        dashboard.FormClosed += OnDashboardClosed;
+        Hide();
+        dashboard.Show();
+        return dashboard;
+    }
+
+    private void OnDashboardSwitchAccountRequested(object? sender, EventArgs e)
+    {
+        _dashboardCloseMode = DashboardCloseMode.SwitchAccount;
+        _currentDashboard?.Close();
+    }
+
+    private void OnDashboardLogoutRequested(object? sender, EventArgs e)
+    {
+        _dashboardCloseMode = DashboardCloseMode.ReturnToLogin;
+        _currentDashboard?.Close();
+    }
+
+    private void OnDashboardClosed(object? sender, FormClosedEventArgs e)
+    {
+        if (sender is MainForm dashboard)
+        {
+            dashboard.SwitchAccountRequested -= OnDashboardSwitchAccountRequested;
+            dashboard.LogoutRequested -= OnDashboardLogoutRequested;
+            dashboard.FormClosed -= OnDashboardClosed;
+            if (ReferenceEquals(_currentDashboard, dashboard))
+            {
+                _currentDashboard = null;
+            }
+        }
+
+        if (_dashboardCloseMode == DashboardCloseMode.SwitchAccount)
+        {
+            ClearLoginInputs();
+            RestoreLoginForm();
+            return;
+        }
+
+        if (_dashboardCloseMode == DashboardCloseMode.ReturnToLogin)
+        {
+            _controller.Logout();
+            ClearLoginInputs();
+            RestoreLoginForm();
+            return;
+        }
+
+        Close();
     }
 
     private void OnPaintBackgroundGlow(object? sender, PaintEventArgs e)
@@ -769,10 +866,7 @@ internal sealed class LoginForm : Form
                 return;
             }
 
-            var dashboard = _compositionRoot.CreateDashboardForm(result.Account!);
-            dashboard.FormClosed += (_, _) => Close();
-            Hide();
-            dashboard.Show();
+            OpenDashboard(result.Account!);
         }
         catch (Exception ex)
         {

@@ -66,6 +66,83 @@ public sealed class InspectionRecordService : IInspectionRecordService
         return record;
     }
 
+    public InspectionImportResult Import(IReadOnlyList<InspectionRecordDraft> drafts)
+    {
+        if (drafts.Count == 0)
+        {
+            throw new InvalidOperationException("没有可导入的巡检记录。");
+        }
+
+        var normalizedDrafts = drafts
+            .Select(NormalizeDraft)
+            .ToList();
+        var importedAt = DateTime.Now;
+
+        var importedRecords = normalizedDrafts
+            .Select(draft => new InspectionRecord(
+                Guid.NewGuid(),
+                draft.LineName,
+                draft.DeviceName,
+                draft.InspectionItem,
+                draft.Inspector,
+                draft.Status,
+                draft.MeasuredValue,
+                draft.CheckedAt,
+                draft.Remark))
+            .ToList();
+
+        var allRecords = _recordRepository.GetAll().ToList();
+        allRecords.AddRange(importedRecords);
+        _recordRepository.SaveAll(allRecords);
+
+        var templates = _templateRepository.GetAll().ToList();
+        var templateCreatedCount = 0;
+        var templateUpdatedCount = 0;
+
+        foreach (var draft in normalizedDrafts
+                     .GroupBy(
+                         item => $"{item.LineName}|{item.DeviceName}|{item.InspectionItem}",
+                         StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group.OrderByDescending(item => item.CheckedAt).First()))
+        {
+            var index = templates.FindIndex(template =>
+                string.Equals(template.LineName, draft.LineName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(template.DeviceName, draft.DeviceName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(template.InspectionItem, draft.InspectionItem, StringComparison.OrdinalIgnoreCase));
+
+            if (index >= 0)
+            {
+                templates[index] = templates[index] with
+                {
+                    DefaultInspector = draft.Inspector,
+                    DefaultRemark = draft.Remark
+                };
+                templateUpdatedCount++;
+                continue;
+            }
+
+            templates.Add(new InspectionTemplate(
+                Guid.NewGuid(),
+                draft.LineName,
+                draft.DeviceName,
+                draft.InspectionItem,
+                draft.Inspector,
+                draft.Remark));
+            templateCreatedCount++;
+        }
+
+        _templateRepository.SaveAll(templates);
+
+        return new InspectionImportResult(
+            importedRecords.Count,
+            importedRecords.Count(record => record.Status == InspectionStatus.Normal),
+            importedRecords.Count(record => record.Status == InspectionStatus.Warning),
+            importedRecords.Count(record => record.Status == InspectionStatus.Abnormal),
+            templateCreatedCount,
+            templateUpdatedCount,
+            importedAt);
+    }
+
     public InspectionRecord Update(Guid id, InspectionRecordDraft draft)
     {
         var normalized = NormalizeDraft(draft);

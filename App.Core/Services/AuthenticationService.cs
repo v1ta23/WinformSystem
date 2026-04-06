@@ -48,6 +48,11 @@ public sealed class AuthenticationService : IAuthenticationService
         return new LoginResult(true, "登录成功。", account);
     }
 
+    public void Logout()
+    {
+        _rememberMeRepository.Clear();
+    }
+
     public OperationResult Register(RegisterRequest request)
     {
         var account = request.Account.Trim();

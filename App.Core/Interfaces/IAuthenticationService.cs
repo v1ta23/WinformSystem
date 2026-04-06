@@ -9,5 +9,7 @@ public interface IAuthenticationService
 
     LoginResult Login(LoginRequest request);
 
+    void Logout();
+
     OperationResult Register(RegisterRequest request);
 }

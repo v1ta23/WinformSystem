@@ -8,6 +8,8 @@ public interface IInspectionRecordService
 
     InspectionRecord Add(InspectionRecordDraft draft);
 
+    InspectionImportResult Import(IReadOnlyList<InspectionRecordDraft> drafts);
+
     InspectionRecord Update(Guid id, InspectionRecordDraft draft);
 
     InspectionRecord Close(Guid id, string account, string closureRemark);

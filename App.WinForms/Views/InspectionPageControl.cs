@@ -1030,6 +1030,22 @@ internal sealed partial class InspectionPageControl : UserControl
             "异常记录");
     }
 
+    public void ShowImportedBatch(string batchKeyword, bool pendingOnly)
+    {
+        if (string.IsNullOrWhiteSpace(batchKeyword))
+        {
+            return;
+        }
+
+        ApplyPresetFilter(
+            new InspectionFilterViewModel
+            {
+                Keyword = batchKeyword,
+                PendingOnly = pendingOnly
+            },
+            pendingOnly ? "导入批次 / 待闭环" : "导入批次");
+    }
+
     public void StartNewEntryFromHome()
     {
         OpenEntryWindow();

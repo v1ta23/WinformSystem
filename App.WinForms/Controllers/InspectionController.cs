@@ -2,6 +2,7 @@ using App.Core.Interfaces;
 using App.Core.Models;
 using App.WinForms.Exports;
 using App.WinForms.ViewModels;
+using System.IO;
 
 namespace App.WinForms.Controllers;
 
@@ -78,6 +79,45 @@ internal sealed class InspectionController
     public void Add(InspectionEntryViewModel entry)
     {
         _inspectionRecordService.Add(ToDraft(entry));
+    }
+
+    public InspectionImportResultViewModel Import(
+        IReadOnlyList<InspectionEntryViewModel> entries,
+        string sourceFileName)
+    {
+        if (entries.Count == 0)
+        {
+            throw new InvalidOperationException("没有可导入的记录。");
+        }
+
+        var batchKeyword = $"CSV导入-{DateTime.Now:yyyyMMddHHmmss}";
+        var sourceLabel = string.IsNullOrWhiteSpace(sourceFileName)
+            ? "未命名文件"
+            : Path.GetFileName(sourceFileName);
+        var drafts = entries
+            .Select(entry =>
+            {
+                var draft = ToDraft(entry);
+                return draft with
+                {
+                    Remark = BuildImportedRemark(draft.Remark, batchKeyword, sourceLabel)
+                };
+            })
+            .ToList();
+
+        var result = _inspectionRecordService.Import(drafts);
+        return new InspectionImportResultViewModel
+        {
+            BatchKeyword = batchKeyword,
+            SourceFileName = sourceLabel,
+            ImportedCount = result.ImportedCount,
+            NormalCount = result.NormalCount,
+            WarningCount = result.WarningCount,
+            AbnormalCount = result.AbnormalCount,
+            TemplateCreatedCount = result.TemplateCreatedCount,
+            TemplateUpdatedCount = result.TemplateUpdatedCount,
+            ImportedAt = result.ImportedAt
+        };
     }
 
     public void Update(Guid id, InspectionEntryViewModel entry)
@@ -189,5 +229,19 @@ internal sealed class InspectionController
         }
 
         return record.ClosureRemark ?? string.Empty;
+    }
+
+    private static string BuildImportedRemark(string remark, string batchKeyword, string sourceLabel)
+    {
+        var importTag = $"[导入批次:{batchKeyword}]";
+        if (remark.Contains(importTag, StringComparison.OrdinalIgnoreCase))
+        {
+            return remark;
+        }
+
+        var sourceTag = $"[来源:{sourceLabel}]";
+        return string.IsNullOrWhiteSpace(remark)
+            ? $"{importTag}{sourceTag}"
+            : $"{remark} {importTag}{sourceTag}";
     }
 }

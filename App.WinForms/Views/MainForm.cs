@@ -29,16 +29,23 @@ namespace App.WinForms.Views
     internal partial class MainForm : Form
     {
         private const int HomeSectionIndex = 0;
-        private const int InspectionSectionIndex = 1;
-        private const int AnalyticsSectionIndex = 2;
+        private const int MonitorSectionIndex = 1;
+        private const int AlarmSectionIndex = 2;
+        private const int InspectionSectionIndex = 3;
+        private const int AnalyticsSectionIndex = 4;
+        private const int DataInsightSectionIndex = 5;
         private const int WmSizing = 0x0214;
         private const int WmExitSizeMove = 0x0232;
 
         private readonly DashboardController _dashboardController;
         private DashboardViewModel _dashboard;
+        private readonly DeviceMonitorPageControl _monitorPage;
+        private readonly AlarmCenterPageControl _alarmPage;
         private readonly InspectionPageControl _inspectionPage;
         private readonly InspectionAnalyticsControl _analyticsPage;
+        private readonly DataInsightPageControl _dataInsightPage;
         private readonly string _account;
+        private readonly ContextMenuStrip _accountMenu;
 
         private readonly struct ThemePalette
         {
@@ -80,8 +87,11 @@ namespace App.WinForms.Views
         private enum SidebarGlyph
         {
             Home,
+            Devices,
+            Warning,
             Page,
             Chart,
+            Import,
             Notification,
             Setting,
             User
@@ -151,6 +161,7 @@ namespace App.WinForms.Views
         private Panel _sidebar = null!;
         private Panel _mainArea = null!;
         private Panel _homeView = null!;
+        private BufferedPanel _avatarButton = null!;
         private BufferedPanel _themeToggleButton = null!;
         private readonly List<DashboardHitRegion> _cardHitRegions = new();
         private readonly List<DashboardHitRegion> _quickActionHitRegions = new();
@@ -168,6 +179,157 @@ namespace App.WinForms.Views
             public DashboardNavigationTarget Target { get; }
         }
 
+        private sealed class AccountMenuColorTable : ProfessionalColorTable
+        {
+            private readonly MainForm _owner;
+
+            public AccountMenuColorTable(MainForm owner)
+            {
+                _owner = owner;
+            }
+
+            public override Color ToolStripDropDownBackground => _owner.CurrentTheme.Card;
+
+            public override Color MenuBorder => Color.Transparent;
+
+            public override Color MenuItemBorder => Color.Transparent;
+
+            public override Color MenuItemSelected => Color.Transparent;
+
+            public override Color MenuItemSelectedGradientBegin => Color.Transparent;
+
+            public override Color MenuItemSelectedGradientEnd => Color.Transparent;
+
+            public override Color MenuItemPressedGradientBegin => Color.Transparent;
+
+            public override Color MenuItemPressedGradientMiddle => Color.Transparent;
+
+            public override Color MenuItemPressedGradientEnd => Color.Transparent;
+
+            public override Color ImageMarginGradientBegin => Color.Transparent;
+
+            public override Color ImageMarginGradientMiddle => Color.Transparent;
+
+            public override Color ImageMarginGradientEnd => Color.Transparent;
+
+            public override Color SeparatorDark => Color.FromArgb(48, 255, 255, 255);
+
+            public override Color SeparatorLight => Color.Transparent;
+        }
+
+        private sealed class AccountMenuRenderer : ToolStripProfessionalRenderer
+        {
+            private readonly MainForm _owner;
+
+            public AccountMenuRenderer(MainForm owner)
+                : base(new AccountMenuColorTable(owner))
+            {
+                _owner = owner;
+                RoundedEdges = false;
+            }
+
+            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                var rect = new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+                using var path = MainForm.CreateRoundRectPath(rect, 18);
+                using var fillBrush = new LinearGradientBrush(
+                    rect,
+                    Color.FromArgb(244, 31, 35, 47),
+                    Color.FromArgb(244, 24, 27, 38),
+                    90f);
+                g.FillPath(fillBrush, path);
+
+                var glowRect = new Rectangle(14, -18, Math.Max(60, rect.Width - 28), 78);
+                using var glowBrush = new LinearGradientBrush(
+                    glowRect,
+                    Color.FromArgb(34, AccentBlue),
+                    Color.FromArgb(0, AccentBlue),
+                    90f);
+                g.FillRectangle(glowBrush, glowRect);
+            }
+
+            protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                var rect = new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+                using var path = MainForm.CreateRoundRectPath(rect, 18);
+                using var borderPen = new Pen(Color.FromArgb(82, 106, 124, 158), 1f);
+                g.DrawPath(borderPen, path);
+
+                var innerRect = Rectangle.Inflate(rect, -1, -1);
+                using var innerPath = MainForm.CreateRoundRectPath(innerRect, 17);
+                using var innerPen = new Pen(Color.FromArgb(24, 255, 255, 255), 1f);
+                g.DrawPath(innerPen, innerPath);
+            }
+
+            protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+            {
+            }
+
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item is not ToolStripMenuItem || !e.Item.Selected)
+                {
+                    return;
+                }
+
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                var rect = new Rectangle(8, 2, e.Item.Width - 16, e.Item.Height - 4);
+                using var path = MainForm.CreateRoundRectPath(rect, 12);
+                using var fillBrush = new SolidBrush(Color.FromArgb(26, AccentBlue));
+                using var tintBrush = new SolidBrush(Color.FromArgb(12, 255, 255, 255));
+                using var borderPen = new Pen(Color.FromArgb(72, AccentBlue), 1f);
+                g.FillPath(fillBrush, path);
+                g.FillPath(tintBrush, path);
+                g.DrawPath(borderPen, path);
+            }
+
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                var color = e.Item.ForeColor;
+                if (e.Item is ToolStripMenuItem)
+                {
+                    color = e.Item.Selected
+                        ? Color.FromArgb(244, 247, 255)
+                        : _owner.CurrentTheme.TextPrimary;
+                }
+
+                var textRect = e.TextRectangle;
+                if (e.Item is ToolStripMenuItem)
+                {
+                    textRect.Offset(6, 0);
+                }
+
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    e.Text,
+                    e.TextFont,
+                    textRect,
+                    color,
+                    TextFormatFlags.Left |
+                    TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPadding);
+            }
+
+            protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+            {
+                var y = e.Item.ContentRectangle.Top + (e.Item.ContentRectangle.Height / 2);
+                using var pen = new Pen(Color.FromArgb(48, 255, 255, 255), 1f);
+                e.Graphics.DrawLine(pen, 18, y, e.Item.Width - 18, y);
+            }
+        }
+
+        public event EventHandler? SwitchAccountRequested;
+
+        public event EventHandler? LogoutRequested;
+
         public MainForm(
             DashboardController dashboardController,
             InspectionController inspectionController,
@@ -176,6 +338,16 @@ namespace App.WinForms.Views
             _dashboardController = dashboardController;
             _dashboard = dashboardController.Load(account);
             _account = account;
+            _accountMenu = CreateAccountMenu();
+            _monitorPage = new DeviceMonitorPageControl(inspectionController)
+            {
+                Visible = false
+            };
+            _alarmPage = new AlarmCenterPageControl(account, inspectionController)
+            {
+                Visible = false
+            };
+            _alarmPage.DataChanged += OnInspectionDataChanged;
             _inspectionPage = new InspectionPageControl(account, inspectionController)
             {
                 Visible = false
@@ -185,6 +357,13 @@ namespace App.WinForms.Views
             {
                 Visible = false
             };
+            _dataInsightPage = new DataInsightPageControl(inspectionController, account)
+            {
+                Visible = false
+            };
+            _dataInsightPage.DataChanged += OnInspectionDataChanged;
+            _dataInsightPage.ViewImportedRequested += OnDataInsightViewImportedRequested;
+            _dataInsightPage.ViewPendingRequested += OnDataInsightViewPendingRequested;
 
             // 基础设置
             this.Text = "Glass Dashboard · 毛玻璃仪表板";
@@ -399,10 +578,16 @@ namespace App.WinForms.Views
             homeView.Controls.Add(cardsPanel);
             homeView.Controls.Add(headerPanel);
 
+            _monitorPage.Dock = DockStyle.Fill;
+            _alarmPage.Dock = DockStyle.Fill;
             _inspectionPage.Dock = DockStyle.Fill;
             _analyticsPage.Dock = DockStyle.Fill;
+            _dataInsightPage.Dock = DockStyle.Fill;
+            mainArea.Controls.Add(_monitorPage);
+            mainArea.Controls.Add(_alarmPage);
             mainArea.Controls.Add(_inspectionPage);
             mainArea.Controls.Add(_analyticsPage);
+            mainArea.Controls.Add(_dataInsightPage);
             mainArea.Controls.Add(homeView);
 
             this.Controls.Add(mainArea);
@@ -426,8 +611,11 @@ namespace App.WinForms.Views
             if (!_windowEffectsSuspended)
                 EnableAcrylicBlur();
             
+            _monitorPage?.ApplyTheme();
+            _alarmPage?.ApplyTheme();
             _inspectionPage?.ApplyTheme();
             _analyticsPage?.ApplyTheme();
+            _dataInsightPage?.ApplyTheme();
             InvalidateControlTree(this);
         }
 
@@ -446,17 +634,64 @@ namespace App.WinForms.Views
         private void OnInspectionDataChanged(object? sender, EventArgs e)
         {
             ReloadDashboard();
+            if (_inspectionPage.Visible)
+            {
+                _inspectionPage.RefreshData();
+            }
+
+            if (_monitorPage.Visible)
+            {
+                _monitorPage.RefreshData();
+            }
+
+            if (_alarmPage.Visible)
+            {
+                _alarmPage.RefreshData();
+            }
+
             if (_analyticsPage.Visible)
             {
                 _analyticsPage.RefreshData();
             }
         }
 
-        private void SwitchSection(int index, bool refreshInspectionPage = true, bool refreshAnalyticsPage = true)
+        private void OnDataInsightViewImportedRequested(object? sender, EventArgs e)
         {
+            OpenImportedBatchReview(false);
+        }
+
+        private void OnDataInsightViewPendingRequested(object? sender, EventArgs e)
+        {
+            OpenImportedBatchReview(true);
+        }
+
+        private void OpenImportedBatchReview(bool pendingOnly)
+        {
+            var batchKeyword = _dataInsightPage.LastImportedBatchKeyword;
+            if (string.IsNullOrWhiteSpace(batchKeyword))
+            {
+                return;
+            }
+
+            UpdateNavigationSelection(InspectionSectionIndex);
+            _inspectionPage.ShowImportedBatch(batchKeyword, pendingOnly);
+            SwitchSection(InspectionSectionIndex, refreshInspectionPage: false);
+        }
+
+        private void SwitchSection(
+            int index,
+            bool refreshInspectionPage = true,
+            bool refreshAnalyticsPage = true,
+            bool refreshMonitorPage = true,
+            bool refreshAlarmPage = true)
+        {
+            var showHome = index == HomeSectionIndex;
+            var showMonitor = index == MonitorSectionIndex;
+            var showAlarm = index == AlarmSectionIndex;
             var showInspection = index == InspectionSectionIndex;
             var showAnalytics = index == AnalyticsSectionIndex;
-            var showHome = !showInspection && !showAnalytics;
+            var showDataInsight = index == DataInsightSectionIndex;
+
             if (_homeView != null)
             {
                 _homeView.Visible = showHome;
@@ -465,6 +700,24 @@ namespace App.WinForms.Views
             if (showHome)
             {
                 ReloadDashboard();
+            }
+
+            if (_monitorPage != null)
+            {
+                _monitorPage.Visible = showMonitor;
+                if (showMonitor && refreshMonitorPage)
+                {
+                    _monitorPage.RefreshData();
+                }
+            }
+
+            if (_alarmPage != null)
+            {
+                _alarmPage.Visible = showAlarm;
+                if (showAlarm && refreshAlarmPage)
+                {
+                    _alarmPage.RefreshData();
+                }
             }
 
             if (_inspectionPage != null)
@@ -487,6 +740,11 @@ namespace App.WinForms.Views
                 {
                     _analyticsPage.RefreshData();
                 }
+            }
+
+            if (_dataInsightPage != null)
+            {
+                _dataInsightPage.Visible = showDataInsight;
             }
         }
 
@@ -537,6 +795,124 @@ namespace App.WinForms.Views
         }
 
         // ==================== 侧栏 ====================
+        private ContextMenuStrip CreateAccountMenu()
+        {
+            const int menuWidth = 228;
+            var menu = new ContextMenuStrip
+            {
+                AutoSize = false,
+                Size = new Size(menuWidth, 174),
+                ShowImageMargin = false,
+                ShowCheckMargin = false,
+                Padding = new Padding(8, 10, 8, 10),
+                Margin = Padding.Empty,
+                BackColor = CurrentTheme.Card,
+                ForeColor = CurrentTheme.TextPrimary,
+                DropShadowEnabled = false,
+                Font = new Font("Microsoft YaHei UI", 9F),
+                Renderer = new AccountMenuRenderer(this)
+            };
+
+            menu.Opening += (_, _) => UpdateAccountMenuStyle(menu);
+            menu.SizeChanged += (_, _) => UpdateAccountMenuRegion(menu);
+
+            var titleLabel = new ToolStripLabel("\u5f53\u524d\u8d26\u53f7")
+            {
+                AutoSize = false,
+                Size = new Size(menuWidth - 16, 22),
+                Margin = Padding.Empty,
+                Padding = new Padding(20, 4, 16, 0),
+                Font = new Font("Microsoft YaHei UI", 8.5F),
+                ForeColor = CurrentTheme.TextMuted,
+                TextAlign = ContentAlignment.BottomLeft
+            };
+            var accountLabel = new ToolStripLabel(_account)
+            {
+                AutoSize = false,
+                Size = new Size(menuWidth - 16, 34),
+                Margin = Padding.Empty,
+                Padding = new Padding(20, 0, 16, 8),
+                Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Bold),
+                ForeColor = CurrentTheme.TextPrimary,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            var separator = new ToolStripSeparator
+            {
+                Margin = new Padding(0, 2, 0, 6)
+            };
+            var switchAccountItem = CreateAccountMenuItem("\u5207\u6362\u8d26\u53f7");
+            switchAccountItem.Click += (_, _) => OnSwitchAccountRequested();
+            var logoutItem = CreateAccountMenuItem("\u9000\u51fa\u767b\u5f55");
+            logoutItem.Click += (_, _) => OnLogoutRequested();
+
+            menu.Items.Add(titleLabel);
+            menu.Items.Add(accountLabel);
+            menu.Items.Add(separator);
+            menu.Items.Add(switchAccountItem);
+            menu.Items.Add(logoutItem);
+            UpdateAccountMenuStyle(menu);
+            return menu;
+        }
+
+        private ToolStripMenuItem CreateAccountMenuItem(string text)
+        {
+            return new ToolStripMenuItem(text)
+            {
+                AutoSize = false,
+                Size = new Size(212, 42),
+                Margin = new Padding(0, 0, 0, 4),
+                Padding = new Padding(28, 12, 18, 12),
+                ForeColor = CurrentTheme.TextPrimary,
+                Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold)
+            };
+        }
+
+        private void UpdateAccountMenuStyle(ContextMenuStrip menu)
+        {
+            menu.BackColor = CurrentTheme.Card;
+            menu.ForeColor = CurrentTheme.TextPrimary;
+            UpdateAccountMenuRegion(menu);
+        }
+
+        private static void UpdateAccountMenuRegion(ToolStripDropDown menu)
+        {
+            if (menu.Width <= 0 || menu.Height <= 0)
+            {
+                return;
+            }
+
+            var oldRegion = menu.Region;
+            using var path = CreateRoundRectPath(new Rectangle(0, 0, menu.Width - 1, menu.Height - 1), 18);
+            menu.Region = new Region(path);
+            oldRegion?.Dispose();
+        }
+
+        private void ShowAccountMenu()
+        {
+            if (_accountMenu.Visible)
+            {
+                _accountMenu.Close();
+                return;
+            }
+
+            UpdateAccountMenuStyle(_accountMenu);
+            _accountMenu.Show(
+                _sidebar,
+                new Point(_sidebar.Width + 12, _avatarButton.Top - 6));
+        }
+
+        private void OnSwitchAccountRequested()
+        {
+            _accountMenu.Close();
+            SwitchAccountRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnLogoutRequested()
+        {
+            _accountMenu.Close();
+            LogoutRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         private Panel CreateSidebar()
         {
             const int sidebarWidth = 96;
@@ -590,13 +966,22 @@ namespace App.WinForms.Views
                 g.DrawLine(separatorPen, sidebar.Width - 2, 0, sidebar.Width - 2, sidebar.Height);
             };
 
-            // 顶部用户头像（原Logo位置）
+            // 顶部账号入口
             var avatarPanel = new BufferedPanel
             {
                 Size = new Size(avatarSize, avatarSize),
                 Location = new Point((sidebarWidth - avatarSize) / 2, 18),
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand
+            };
+            _avatarButton = avatarPanel;
+            avatarPanel.Click += (s, e) => ShowAccountMenu();
+            avatarPanel.MouseUp += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Right)
+                {
+                    ShowAccountMenu();
+                }
             };
             avatarPanel.Paint += (s, e) =>
             {
@@ -613,16 +998,21 @@ namespace App.WinForms.Views
                 using var tilePath = CreateRoundRectPath(tileRect, 16);
                 using var bgBrush = new LinearGradientBrush(
                     tileRect,
-                    Color.FromArgb(44, 47, 61),
-                    Color.FromArgb(31, 34, 46),
+                    Color.FromArgb(46, 50, 65),
+                    Color.FromArgb(27, 31, 43),
                     90f);
                 g.FillPath(bgBrush, tilePath);
 
-                using var tintBrush = new SolidBrush(Color.FromArgb(10, AccentBlue));
+                using var tintBrush = new SolidBrush(Color.FromArgb(16, AccentBlue));
                 g.FillPath(tintBrush, tilePath);
 
-                using var borderPen = new Pen(Color.FromArgb(54, 255, 255, 255), 1f);
+                using var borderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1f);
                 g.DrawPath(borderPen, tilePath);
+
+                var innerRect = Rectangle.Inflate(tileRect, -6, -6);
+                using var innerPath = CreateRoundRectPath(innerRect, 12);
+                using var innerPen = new Pen(Color.FromArgb(28, 255, 255, 255), 1f);
+                g.DrawPath(innerPen, innerPath);
 
                 DrawSidebarGlyph(
                     g,
@@ -646,12 +1036,25 @@ namespace App.WinForms.Views
             SidebarGlyph[] glyphs =
             {
                 SidebarGlyph.Home,
+                SidebarGlyph.Devices,
+                SidebarGlyph.Warning,
                 SidebarGlyph.Page,
-                SidebarGlyph.Chart,
-                SidebarGlyph.Notification,
-                SidebarGlyph.Setting
+                SidebarGlyph.Chart
             };
             string[] tips = { "首页", "点检记录", "统计分析", "通知", "设置" };
+
+            tips = new[] { "首页", "设备监控", "报警中心", "巡检管理", "统计分析" };
+
+            glyphs = new[]
+            {
+                SidebarGlyph.Home,
+                SidebarGlyph.Devices,
+                SidebarGlyph.Warning,
+                SidebarGlyph.Page,
+                SidebarGlyph.Chart,
+                SidebarGlyph.Import
+            };
+            tips = new[] { "首页", "设备监控", "报警中心", "巡检管理", "统计分析", "数据导入" };
 
             for (int i = 0; i < glyphs.Length; i++)
             {
@@ -902,19 +1305,31 @@ namespace App.WinForms.Views
                         _cardHitRegions.Add(new DashboardHitRegion(rect, cardData[i].NavigationTarget));
                     }
 
-                    // 图标背景圈
-                    int iconBgSize = 40;
-                    var iconBgRect = new Rectangle(rect.X + 20, rect.Y + 22, iconBgSize, iconBgSize);
+                    var cardIconText = cardData[i].Icon;
+                    var cardIconFontSize = cardIconText.Length switch
+                    {
+                        >= 4 => 8.5F,
+                        3 => 9.5F,
+                        _ => 11F
+                    };
+                    using var iconFont = new Font("Microsoft YaHei UI", cardIconFontSize, FontStyle.Bold);
+                    var iconTextSize = g.MeasureString(cardIconText, iconFont);
+                    var iconBgWidth = Math.Max(44, (int)Math.Ceiling(iconTextSize.Width) + 22);
+                    const int iconBgHeight = 32;
+                    var iconBgRect = new Rectangle(rect.X + 20, rect.Y + 26, iconBgWidth, iconBgHeight);
                     using var iconBgBrush = new SolidBrush(_isDarkTheme
                         ? Color.FromArgb(Math.Min(50, alpha / 5), cardData[i].AccentColor)
                         : Color.FromArgb(35, cardData[i].AccentColor));
                     var iconBgPath = CreateRoundRectPath(iconBgRect, 12);
                     g.FillPath(iconBgBrush, iconBgPath);
 
-                    // 图标
-                    using var iconFont = new Font("Segoe UI", 16);
                     using var iconBrush = new SolidBrush(Color.FromArgb(Math.Min(255, alpha), cardData[i].AccentColor));
-                    g.DrawString(cardData[i].Icon, iconFont, iconBrush, rect.X + 28, rect.Y + 30);
+                    g.DrawString(
+                        cardIconText,
+                        iconFont,
+                        iconBrush,
+                        iconBgRect.X + (iconBgRect.Width - iconTextSize.Width) / 2,
+                        iconBgRect.Y + (iconBgRect.Height - iconTextSize.Height) / 2 - 1);
 
                     // 数值与说明按固定文本区域绘制，避免中文字体高度变化时互相重叠
                     using var valueFont = new Font("Segoe UI", 22, FontStyle.Bold);
@@ -1027,14 +1442,29 @@ namespace App.WinForms.Views
                         }
 
                         // 状态图标
-                        using var statusFont = new Font("Segoe UI", 10);
+                        using var statusFont = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+                        var statusText = logs[i].Status;
+                        var statusSize = g.MeasureString(statusText, statusFont);
+                        var statusRect = new Rectangle(
+                            leftRect.X + 24,
+                            logY + Math.Max(0, (logH - 22) / 2),
+                            (int)Math.Ceiling(statusSize.Width) + 18,
+                            22);
+                        using (var statusPath = CreateRoundRectPath(statusRect, 11))
+                        {
+                            using var statusFill = new SolidBrush(Color.FromArgb(Math.Min(54, logAlpha / 5), logs[i].AccentColor));
+                            using var statusBorder = new Pen(Color.FromArgb(Math.Min(120, logAlpha / 2), logs[i].AccentColor), 1f);
+                            g.FillPath(statusFill, statusPath);
+                            g.DrawPath(statusBorder, statusPath);
+                        }
+
                         using var statusBrush = new SolidBrush(Color.FromArgb(Math.Min(255, logAlpha), logs[i].AccentColor));
-                        g.DrawString(logs[i].Status, statusFont, statusBrush, leftRect.X + 24, logY + (logH - 16) / 2);
+                        g.DrawString(statusText, statusFont, statusBrush, statusRect.X + 9, statusRect.Y + 4);
 
                         // 日志文本
                         using var logFont = new Font("Segoe UI", 10);
                         using var logBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(210, logAlpha) : Math.Min(255, logAlpha), CurrentTheme.TextPrimary));
-                        g.DrawString(logs[i].Text, logFont, logBrush, leftRect.X + 52, logY + (logH - 16) / 2);
+                        var logText = logs[i].Text;
 
                         // 时间
                         using var timeFont = new Font("Segoe UI", 9);
@@ -1042,6 +1472,13 @@ namespace App.WinForms.Views
                         var timeSize = g.MeasureString(timeStr, timeFont);
                         using var timeBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(120, logAlpha) : Math.Min(190, logAlpha), CurrentTheme.TextMuted));
                         g.DrawString(timeStr, timeFont, timeBrush, leftRect.Right - timeSize.Width - 24, logY + (logH - 14) / 2);
+                        var logRect = new RectangleF(
+                            statusRect.Right + 12,
+                            logY,
+                            Math.Max(40, leftRect.Right - timeSize.Width - 36 - (statusRect.Right + 12)),
+                            logH);
+                        using var logTextFormat = CreateSingleLineTextFormat();
+                        g.DrawString(logText, logFont, logBrush, logRect, logTextFormat);
 
                         logY += logH;
                     }
@@ -1120,15 +1557,29 @@ namespace App.WinForms.Views
                             : Color.FromArgb(Math.Min(220, btnAlpha), actions[i].PrimaryAccent), 1.2f);
                         g.DrawPath(btnBorderPen, btnPath);
 
-                        // 图标
-                        using var btnIconFont = new Font("Segoe UI Emoji", 14);
+                        var actionIconText = actions[i].Icon;
+                        var actionIconFontSize = actionIconText.Length >= 3 ? 8.8F : 10.2F;
+                        using var btnIconFont = new Font("Microsoft YaHei UI", actionIconFontSize, FontStyle.Bold);
                         using var btnIconBrush = new SolidBrush(Color.FromArgb(Math.Min(255, btnAlpha), actions[i].PrimaryAccent));
-                        g.DrawString(actions[i].Icon, btnIconFont, btnIconBrush, btnRect.X + 14, btnRect.Y + (btnRect.Height - 22) / 2);
+                        var btnIconSize = g.MeasureString(actionIconText, btnIconFont);
+                        var btnBadgeWidth = Math.Max(36, (int)Math.Ceiling(btnIconSize.Width) + 18);
+                        var btnBadgeRect = new Rectangle(btnRect.X + 14, btnRect.Y + (btnRect.Height - 26) / 2, btnBadgeWidth, 26);
+                        using var btnBadgePath = CreateRoundRectPath(btnBadgeRect, 9);
+                        using var btnBadgeBrush = new SolidBrush(Color.FromArgb(Math.Min(34, btnAlpha / 6), actions[i].PrimaryAccent));
+                        using var btnBadgeBorder = new Pen(Color.FromArgb(Math.Min(86, btnAlpha / 3), actions[i].PrimaryAccent), 1f);
+                        g.FillPath(btnBadgeBrush, btnBadgePath);
+                        g.DrawPath(btnBadgeBorder, btnBadgePath);
+                        g.DrawString(
+                            actionIconText,
+                            btnIconFont,
+                            btnIconBrush,
+                            btnBadgeRect.X + (btnBadgeRect.Width - btnIconSize.Width) / 2,
+                            btnBadgeRect.Y + (btnBadgeRect.Height - btnIconSize.Height) / 2 - 1);
 
                         // 文字
                         using var btnTextFont = new Font("Segoe UI", 11, FontStyle.Bold);
                         using var btnTextBrush = new SolidBrush(Color.FromArgb(_isDarkTheme ? Math.Min(220, btnAlpha) : Math.Min(255, btnAlpha), CurrentTheme.TextPrimary));
-                        g.DrawString(actions[i].Text, btnTextFont, btnTextBrush, btnRect.X + 48, btnRect.Y + (btnRect.Height - 18) / 2);
+                        g.DrawString(actions[i].Text, btnTextFont, btnTextBrush, btnBadgeRect.Right + 14, btnRect.Y + (btnRect.Height - 18) / 2);
 
                         // 箭头
                         using var arrowFont = new Font("Segoe UI", 11);
@@ -1225,8 +1676,11 @@ namespace App.WinForms.Views
                 glyph switch
                 {
                     SidebarGlyph.Home => "\uE80F",
+                    SidebarGlyph.Devices => "\uE772",
+                    SidebarGlyph.Warning => "\uE7BA",
                     SidebarGlyph.Page => "\uE7C3",
                     SidebarGlyph.Chart => "\uE9D9",
+                    SidebarGlyph.Import => "\uE8B5",
                     SidebarGlyph.Notification => "\uE7E7",
                     SidebarGlyph.Setting => "\uE713",
                     SidebarGlyph.User => "\uE77B",

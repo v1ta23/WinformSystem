@@ -28,4 +28,9 @@ internal sealed class LoginController
     {
         return _authenticationService.Login(new LoginRequest(account, password, rememberPassword));
     }
+
+    public void Logout()
+    {
+        _authenticationService.Logout();
+    }
 }
