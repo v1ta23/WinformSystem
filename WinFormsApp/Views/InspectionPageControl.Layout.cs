@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed partial class InspectionPageControl
 {

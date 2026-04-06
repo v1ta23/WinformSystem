@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace App.WinForms.ViewModels;
+namespace WinFormsApp.ViewModels;
 
 internal enum DashboardNavigationTarget
 {

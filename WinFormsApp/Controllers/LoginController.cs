@@ -1,8 +1,8 @@
 using App.Core.DTOs;
 using App.Core.Interfaces;
-using App.WinForms.ViewModels;
+using WinFormsApp.ViewModels;
 
-namespace App.WinForms.Controllers;
+namespace WinFormsApp.Controllers;
 
 internal sealed class LoginController
 {

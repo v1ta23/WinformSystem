@@ -1,6 +1,6 @@
-using App.WinForms.Controllers;
+using WinFormsApp.Controllers;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed class RegisterForm : Form
 {

@@ -1,7 +1,7 @@
 using App.Core.DTOs;
 using App.Core.Interfaces;
 
-namespace App.WinForms.Controllers;
+namespace WinFormsApp.Controllers;
 
 internal sealed class RegisterController
 {

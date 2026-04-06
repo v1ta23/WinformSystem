@@ -1,4 +1,4 @@
-namespace App.WinForms.ViewModels;
+namespace WinFormsApp.ViewModels;
 
 internal sealed class InspectionImportResultViewModel
 {

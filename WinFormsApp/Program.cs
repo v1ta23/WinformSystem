@@ -1,6 +1,6 @@
-using App.WinForms.Views;
+using WinFormsApp.Views;
 
-namespace App.WinForms;
+namespace WinFormsApp;
 
 internal static class Program
 {

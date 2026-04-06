@@ -1,10 +1,10 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using App.Core.Models;
-using App.WinForms.Controllers;
-using App.WinForms.ViewModels;
+using WinFormsApp.Controllers;
+using WinFormsApp.ViewModels;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed partial class InspectionPageControl : UserControl
 {

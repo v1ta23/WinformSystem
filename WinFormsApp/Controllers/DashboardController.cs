@@ -1,9 +1,9 @@
 using App.Core.Interfaces;
 using App.Core.Models;
-using App.WinForms.ViewModels;
+using WinFormsApp.ViewModels;
 using System.Drawing;
 
-namespace App.WinForms.Controllers;
+namespace WinFormsApp.Controllers;
 
 internal sealed class DashboardController
 {

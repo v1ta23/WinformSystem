@@ -1,6 +1,6 @@
 using App.Core.Models;
 
-namespace App.WinForms.ViewModels;
+namespace WinFormsApp.ViewModels;
 
 internal sealed class InspectionDashboardViewModel
 {

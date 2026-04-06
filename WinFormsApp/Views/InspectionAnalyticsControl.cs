@@ -1,10 +1,10 @@
 using App.Core.Models;
-using App.WinForms.Controllers;
-using App.WinForms.ViewModels;
+using WinFormsApp.Controllers;
+using WinFormsApp.ViewModels;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed class InspectionAnalyticsControl : UserControl
 {

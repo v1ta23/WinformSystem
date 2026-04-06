@@ -1,8 +1,8 @@
-using App.WinForms.Controllers;
+using WinFormsApp.Controllers;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed class LoginForm : Form
 {

@@ -1,12 +1,12 @@
 using App.Core.Models;
-using App.WinForms.Controllers;
-using App.WinForms.ViewModels;
+using WinFormsApp.Controllers;
+using WinFormsApp.ViewModels;
 using Microsoft.VisualBasic.FileIO;
 using System.Data;
 using System.Drawing.Drawing2D;
 using System.Text;
 
-namespace App.WinForms.Views;
+namespace WinFormsApp.Views;
 
 internal sealed class DataInsightPageControl : UserControl
 {

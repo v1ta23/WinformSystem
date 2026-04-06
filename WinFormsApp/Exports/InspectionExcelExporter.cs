@@ -1,7 +1,7 @@
 using App.Core.Models;
 using ClosedXML.Excel;
 
-namespace App.WinForms.Exports;
+namespace WinFormsApp.Exports;
 
 internal sealed class InspectionExcelExporter
 {

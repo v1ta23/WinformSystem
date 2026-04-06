@@ -1,10 +1,10 @@
 using App.Core.Interfaces;
 using App.Core.Models;
-using App.WinForms.Exports;
-using App.WinForms.ViewModels;
+using WinFormsApp.Exports;
+using WinFormsApp.ViewModels;
 using System.IO;
 
-namespace App.WinForms.Controllers;
+namespace WinFormsApp.Controllers;
 
 internal sealed class InspectionController
 {

@@ -1,5 +1,5 @@
-using App.WinForms.Controllers;
-using App.WinForms.ViewModels;
+using WinFormsApp.Controllers;
+using WinFormsApp.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -8,7 +8,7 @@ using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace App.WinForms.Views
+namespace WinFormsApp.Views
 {
     internal sealed class BufferedPanel : Panel
     {

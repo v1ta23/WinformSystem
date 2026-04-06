@@ -2,11 +2,11 @@ using App.Core.Interfaces;
 using App.Core.Services;
 using App.Infrastructure.Config;
 using App.Infrastructure.Repositories;
-using App.WinForms.Controllers;
-using App.WinForms.Exports;
-using App.WinForms.Views;
+using WinFormsApp.Controllers;
+using WinFormsApp.Exports;
+using WinFormsApp.Views;
 
-namespace App.WinForms;
+namespace WinFormsApp;
 
 internal sealed class AppCompositionRoot
 {
