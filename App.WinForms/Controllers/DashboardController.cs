@@ -1,4 +1,5 @@
 using App.Core.Interfaces;
+using App.Core.Models;
 using App.WinForms.ViewModels;
 using System.Drawing;
 
@@ -6,48 +7,146 @@ namespace App.WinForms.Controllers;
 
 internal sealed class DashboardController
 {
-    private readonly IDashboardService _dashboardService;
+    private readonly IInspectionRecordService _inspectionRecordService;
 
-    public DashboardController(IDashboardService dashboardService)
+    public DashboardController(IInspectionRecordService inspectionRecordService)
     {
-        _dashboardService = dashboardService;
+        _inspectionRecordService = inspectionRecordService;
     }
 
     public DashboardViewModel Load(string account)
     {
-        var overview = _dashboardService.GetOverview(account);
+        var result = _inspectionRecordService.Query(new InspectionQuery(
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            null,
+            null,
+            null,
+            false));
+
+        var records = result.Records
+            .Where(record => !record.IsRevoked)
+            .OrderByDescending(record => record.CheckedAt)
+            .ToList();
+
+        var todayStart = DateTime.Today;
+        var todayRecords = records
+            .Where(record => record.CheckedAt >= todayStart)
+            .ToList();
+        var pendingRecords = records
+            .Where(record => record.Status != InspectionStatus.Normal && !record.ClosedAt.HasValue)
+            .ToList();
+        var pendingAbnormalCount = pendingRecords.Count(record => record.Status == InspectionStatus.Abnormal);
+        var todayNormalCount = todayRecords.Count(record => record.Status == InspectionStatus.Normal);
+        var todayWarningCount = todayRecords.Count(record => record.Status == InspectionStatus.Warning);
+        var todayAbnormalCount = todayRecords.Count(record => record.Status == InspectionStatus.Abnormal);
+        var todayPassRate = todayRecords.Count == 0
+            ? 0m
+            : Math.Round(todayNormalCount * 100m / todayRecords.Count, 1);
+
         return new DashboardViewModel
         {
-            HeaderTitle = overview.Title,
-            HeaderSubtitle = overview.Subtitle,
-            Cards = overview.Cards
-                .Select(card => new DashboardCardViewModel
+            HeaderTitle = "巡检工作台",
+            HeaderSubtitle = $"{account}，今天已完成 {todayRecords.Count} 条巡检，待闭环 {pendingRecords.Count} 条。",
+            Cards =
+            [
+                new DashboardCardViewModel
                 {
-                    Title = card.Title,
-                    Value = card.Value,
-                    Detail = card.Detail,
-                    Icon = card.Icon,
-                    AccentColor = MapAccent(card.Accent)
+                    Title = "今日巡检",
+                    Value = todayRecords.Count.ToString(),
+                    Detail = $"正常 {todayNormalCount} / 预警 {todayWarningCount}",
+                    Icon = "T",
+                    AccentColor = MapAccent("blue"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionToday
+                },
+                new DashboardCardViewModel
+                {
+                    Title = "待闭环",
+                    Value = pendingRecords.Count.ToString(),
+                    Detail = $"异常 {pendingAbnormalCount} 条待处理",
+                    Icon = "P",
+                    AccentColor = MapAccent("orange"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionPending
+                },
+                new DashboardCardViewModel
+                {
+                    Title = "今日异常",
+                    Value = todayAbnormalCount.ToString(),
+                    Detail = $"预警 {todayWarningCount} 条",
+                    Icon = "A",
+                    AccentColor = MapAccent("pink"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionAbnormal
+                },
+                new DashboardCardViewModel
+                {
+                    Title = "今日合格率",
+                    Value = $"{todayPassRate:0.0}%",
+                    Detail = todayRecords.Count == 0
+                        ? "今天还没有巡检记录"
+                        : $"总数 {todayRecords.Count}，正常 {todayNormalCount}",
+                    Icon = "%",
+                    AccentColor = MapAccent("green"),
+                    NavigationTarget = DashboardNavigationTarget.Analytics
+                }
+            ],
+            Activities = records
+                .Take(6)
+                .Select(record => new DashboardActivityViewModel
+                {
+                    Time = record.CheckedAt.ToString("HH:mm"),
+                    Text = $"{record.LineName} / {record.DeviceName} / {record.InspectionItem}",
+                    Status = record.Status switch
+                    {
+                        InspectionStatus.Normal => "正常",
+                        InspectionStatus.Warning => "预警",
+                        InspectionStatus.Abnormal => "异常",
+                        _ => "未知"
+                    },
+                    AccentColor = MapAccent(record.Status switch
+                    {
+                        InspectionStatus.Normal => "green",
+                        InspectionStatus.Warning => "orange",
+                        InspectionStatus.Abnormal => "pink",
+                        _ => "blue"
+                    })
                 })
                 .ToList(),
-            Activities = overview.Activities
-                .Select(activity => new DashboardActivityViewModel
+            QuickActions =
+            [
+                new DashboardQuickActionViewModel
                 {
-                    Time = activity.Time,
-                    Text = activity.Text,
-                    Status = activity.Status,
-                    AccentColor = MapAccent(activity.Accent)
-                })
-                .ToList(),
-            QuickActions = overview.QuickActions
-                .Select(action => new DashboardQuickActionViewModel
+                    Text = "新增点检",
+                    Icon = "+",
+                    PrimaryAccent = MapAccent("blue"),
+                    SecondaryAccent = MapAccent("cyan"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionCreate
+                },
+                new DashboardQuickActionViewModel
                 {
-                    Text = action.Text,
-                    Icon = action.Icon,
-                    PrimaryAccent = MapAccent(action.PrimaryAccent),
-                    SecondaryAccent = MapAccent(action.SecondaryAccent)
-                })
-                .ToList()
+                    Text = "处理待闭环",
+                    Icon = "!",
+                    PrimaryAccent = MapAccent("orange"),
+                    SecondaryAccent = MapAccent("pink"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionPending
+                },
+                new DashboardQuickActionViewModel
+                {
+                    Text = "查看异常",
+                    Icon = "A",
+                    PrimaryAccent = MapAccent("pink"),
+                    SecondaryAccent = MapAccent("purple"),
+                    NavigationTarget = DashboardNavigationTarget.InspectionAbnormal
+                },
+                new DashboardQuickActionViewModel
+                {
+                    Text = "统计分析",
+                    Icon = "#",
+                    PrimaryAccent = MapAccent("green"),
+                    SecondaryAccent = MapAccent("cyan"),
+                    NavigationTarget = DashboardNavigationTarget.Analytics
+                }
+            ]
         };
     }
 

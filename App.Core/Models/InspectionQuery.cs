@@ -7,7 +7,8 @@ public sealed record InspectionQuery(
     InspectionStatus? Status,
     DateTime? StartTime,
     DateTime? EndTime,
-    bool IncludeRevoked)
+    bool IncludeRevoked,
+    bool PendingOnly = false)
 {
     public InspectionQuery(
         string keyword,
@@ -16,7 +17,7 @@ public sealed record InspectionQuery(
         DateTime? startTime,
         DateTime? endTime,
         bool includeRevoked)
-        : this(keyword, lineName, string.Empty, status, startTime, endTime, includeRevoked)
+        : this(keyword, lineName, string.Empty, status, startTime, endTime, includeRevoked, false)
     {
     }
 }

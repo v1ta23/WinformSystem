@@ -147,7 +147,8 @@ internal sealed class InspectionController
             filter.Status,
             filter.StartTime,
             filter.EndTime,
-            filter.IncludeRevoked);
+            filter.IncludeRevoked,
+            filter.PendingOnly);
     }
 
     private static InspectionRecordDraft ToDraft(InspectionEntryViewModel entry)

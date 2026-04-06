@@ -2,6 +2,16 @@ using System.Drawing;
 
 namespace App.WinForms.ViewModels;
 
+internal enum DashboardNavigationTarget
+{
+    None,
+    InspectionToday,
+    InspectionPending,
+    InspectionAbnormal,
+    InspectionCreate,
+    Analytics
+}
+
 internal sealed class DashboardViewModel
 {
     public string HeaderTitle { get; init; } = string.Empty;
@@ -26,6 +36,8 @@ internal sealed class DashboardCardViewModel
     public string Icon { get; init; } = string.Empty;
 
     public Color AccentColor { get; init; }
+
+    public DashboardNavigationTarget NavigationTarget { get; init; }
 }
 
 internal sealed class DashboardActivityViewModel
@@ -48,4 +60,6 @@ internal sealed class DashboardQuickActionViewModel
     public Color PrimaryAccent { get; init; }
 
     public Color SecondaryAccent { get; init; }
+
+    public DashboardNavigationTarget NavigationTarget { get; init; }
 }

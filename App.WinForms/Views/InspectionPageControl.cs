@@ -86,8 +86,17 @@ internal sealed partial class InspectionPageControl : UserControl
     private bool _isDisposingFloatingWindows;
     private bool _isInteractiveResize;
     private bool _suppressTemplateSelectionChanged;
+    private bool _suppressPresetReset;
+    private bool _pendingOnlyOverride;
+    private bool _screenInitialized;
+    private bool _hasDeferredPreset;
     private Guid? _editingRecordId;
     private Bitmap? _resizeSnapshot;
+    private string _activePresetLabel = string.Empty;
+    private string _deferredPresetLabel = string.Empty;
+    private InspectionFilterViewModel _deferredPresetFilter = new();
+
+    public event EventHandler? DataChanged;
 
     private sealed class BufferedPanel : Panel
     {
@@ -305,6 +314,7 @@ internal sealed partial class InspectionPageControl : UserControl
         _filterIncludeRevokedCheckBox = CreateCheckBox("显示已撤回");
         _filterStartPicker = CreateDateTimePicker(true);
         _filterEndPicker = CreateDateTimePicker(true);
+        AttachFilterPresetResetHandlers();
 
         _refreshLabel = new Label
         {
@@ -834,6 +844,7 @@ internal sealed partial class InspectionPageControl : UserControl
         {
             _controller.Close(record.Id, _account, closureRemark);
             RefreshDashboard();
+            NotifyDataChanged();
         }
         catch (Exception ex)
         {
@@ -860,6 +871,7 @@ internal sealed partial class InspectionPageControl : UserControl
             _controller.Revoke(record.Id, _account, revokeReason);
             _filterIncludeRevokedCheckBox.Checked = true;
             RefreshDashboard();
+            NotifyDataChanged();
         }
         catch (Exception ex)
         {
@@ -889,6 +901,7 @@ internal sealed partial class InspectionPageControl : UserControl
         {
             _controller.Delete(record.Id);
             RefreshDashboard();
+            NotifyDataChanged();
         }
         catch (Exception ex)
         {
@@ -955,9 +968,28 @@ internal sealed partial class InspectionPageControl : UserControl
 
     private void InitializeScreen()
     {
-        BindStatusOptions();
-        ResetFilters();
+        _suppressPresetReset = true;
+        try
+        {
+            BindStatusOptions();
+        }
+        finally
+        {
+            _suppressPresetReset = false;
+        }
+
+        if (_hasDeferredPreset)
+        {
+            ApplyPresetValuesToControls(_deferredPresetFilter, _deferredPresetLabel);
+            _hasDeferredPreset = false;
+        }
+        else
+        {
+            ResetFilters();
+        }
+
         StartCreateEntry();
+        _screenInitialized = true;
         RefreshDashboard();
         ApplyResponsiveLayout();
     }
@@ -965,6 +997,42 @@ internal sealed partial class InspectionPageControl : UserControl
     public void RefreshData()
     {
         RefreshDashboard();
+    }
+
+    public void ShowTodayRecords()
+    {
+        ApplyPresetFilter(
+            new InspectionFilterViewModel
+            {
+                StartTime = DateTime.Today,
+                EndTime = DateTime.Now
+            },
+            "今日巡检");
+    }
+
+    public void ShowPendingRecords()
+    {
+        ApplyPresetFilter(
+            new InspectionFilterViewModel
+            {
+                PendingOnly = true
+            },
+            "待闭环");
+    }
+
+    public void ShowAbnormalRecords()
+    {
+        ApplyPresetFilter(
+            new InspectionFilterViewModel
+            {
+                Status = InspectionStatus.Abnormal
+            },
+            "异常记录");
+    }
+
+    public void StartNewEntryFromHome()
+    {
+        OpenEntryWindow();
     }
 
     private void OpenEntryWindow()
@@ -1315,12 +1383,21 @@ internal sealed partial class InspectionPageControl : UserControl
         try
         {
             var dashboard = _controller.Load(BuildFilter());
-            UpdateLineOptions(dashboard.LineOptions);
-            UpdateTemplateOptions(dashboard.Templates);
-            UpdateSummary(dashboard);
-            UpdateGrid(dashboard.Records);
-            UpdateCharts(dashboard);
-            _refreshLabel.Text = $"最近刷新：{dashboard.GeneratedAt:yyyy-MM-dd HH:mm:ss}";
+            _suppressPresetReset = true;
+            try
+            {
+                UpdateLineOptions(dashboard.LineOptions);
+                UpdateTemplateOptions(dashboard.Templates);
+                UpdateSummary(dashboard);
+                UpdateGrid(dashboard.Records);
+                UpdateCharts(dashboard);
+            }
+            finally
+            {
+                _suppressPresetReset = false;
+            }
+
+            UpdateRefreshLabel(dashboard.GeneratedAt);
         }
         catch (Exception ex)
         {
@@ -1476,6 +1553,7 @@ internal sealed partial class InspectionPageControl : UserControl
             }
 
             RefreshDashboard();
+            NotifyDataChanged();
         }
         catch (Exception ex)
         {
@@ -1530,7 +1608,8 @@ internal sealed partial class InspectionPageControl : UserControl
             Status = status,
             StartTime = startTime,
             EndTime = endTime,
-            IncludeRevoked = _filterIncludeRevokedCheckBox.Checked
+            IncludeRevoked = _filterIncludeRevokedCheckBox.Checked,
+            PendingOnly = _pendingOnlyOverride
         };
     }
 
@@ -1556,6 +1635,8 @@ internal sealed partial class InspectionPageControl : UserControl
         _filterStartPicker.Checked = false;
         _filterEndPicker.Checked = false;
         _filterIncludeRevokedCheckBox.Checked = false;
+        _pendingOnlyOverride = false;
+        _activePresetLabel = string.Empty;
         if (_filterLineCombo.Items.Count > 0)
         {
             _filterLineCombo.SelectedIndex = 0;
@@ -1564,6 +1645,112 @@ internal sealed partial class InspectionPageControl : UserControl
         {
             _filterStatusCombo.SelectedIndex = 0;
         }
+    }
+
+    private void AttachFilterPresetResetHandlers()
+    {
+        _filterKeywordTextBox.TextChanged += (_, _) => ClearHiddenPreset();
+        _filterDeviceTextBox.TextChanged += (_, _) => ClearHiddenPreset();
+        _filterLineCombo.SelectedIndexChanged += (_, _) => ClearHiddenPreset();
+        _filterStatusCombo.SelectedIndexChanged += (_, _) => ClearHiddenPreset();
+        _filterIncludeRevokedCheckBox.CheckedChanged += (_, _) => ClearHiddenPreset();
+        _filterStartPicker.ValueChanged += (_, _) => ClearHiddenPreset();
+        _filterEndPicker.ValueChanged += (_, _) => ClearHiddenPreset();
+    }
+
+    private void ApplyPresetFilter(InspectionFilterViewModel filter, string presetLabel)
+    {
+        _deferredPresetFilter = filter;
+        _deferredPresetLabel = presetLabel;
+        ApplyPresetValuesToControls(filter, presetLabel);
+
+        if (!_screenInitialized)
+        {
+            _deferredPresetFilter = filter;
+            _deferredPresetLabel = presetLabel;
+            _hasDeferredPreset = true;
+            return;
+        }
+
+        _hasDeferredPreset = false;
+        RefreshDashboard();
+    }
+
+    private void ApplyPresetValuesToControls(InspectionFilterViewModel filter, string presetLabel)
+    {
+        _suppressPresetReset = true;
+        try
+        {
+            ResetFilters();
+            _pendingOnlyOverride = filter.PendingOnly;
+            _activePresetLabel = presetLabel;
+
+            _filterKeywordTextBox.Text = filter.Keyword;
+            _filterDeviceTextBox.Text = filter.DeviceName;
+            _filterIncludeRevokedCheckBox.Checked = filter.IncludeRevoked;
+
+            if (filter.StartTime.HasValue)
+            {
+                _filterStartPicker.Value = filter.StartTime.Value;
+                _filterStartPicker.Checked = true;
+            }
+
+            if (filter.EndTime.HasValue)
+            {
+                _filterEndPicker.Value = filter.EndTime.Value;
+                _filterEndPicker.Checked = true;
+            }
+
+            SelectFilterStatus(filter.Status);
+        }
+        finally
+        {
+            _suppressPresetReset = false;
+        }
+    }
+
+    private void SelectFilterStatus(InspectionStatus? status)
+    {
+        for (var index = 0; index < _filterStatusCombo.Items.Count; index++)
+        {
+            if (_filterStatusCombo.Items[index] is StatusOption option && option.Value == status)
+            {
+                _filterStatusCombo.SelectedIndex = index;
+                return;
+            }
+        }
+
+        if (_filterStatusCombo.Items.Count > 0)
+        {
+            _filterStatusCombo.SelectedIndex = 0;
+        }
+    }
+
+    private void ClearHiddenPreset()
+    {
+        if (_suppressPresetReset)
+        {
+            return;
+        }
+
+        _pendingOnlyOverride = false;
+        _activePresetLabel = string.Empty;
+        _hasDeferredPreset = false;
+        _deferredPresetLabel = string.Empty;
+        _deferredPresetFilter = new InspectionFilterViewModel();
+    }
+
+    private void UpdateRefreshLabel(DateTime generatedAt)
+    {
+        var presetText = string.IsNullOrWhiteSpace(_activePresetLabel)
+            ? string.Empty
+            : $" | 快捷筛选：{_activePresetLabel}";
+        _refreshLabel.Text = $"最近刷新：{generatedAt:yyyy-MM-dd HH:mm:ss}{presetText}";
+    }
+
+    private void NotifyDataChanged()
+    {
+        DataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ResetEntryForm(bool keepLine = false, bool keepInspector = false)

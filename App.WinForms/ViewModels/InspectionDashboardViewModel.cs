@@ -103,6 +103,8 @@ internal sealed class InspectionFilterViewModel
     public DateTime? EndTime { get; init; }
 
     public bool IncludeRevoked { get; init; }
+
+    public bool PendingOnly { get; init; }
 }
 
 internal sealed class InspectionEntryViewModel

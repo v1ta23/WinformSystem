@@ -28,12 +28,17 @@ namespace App.WinForms.Views
 
     internal partial class MainForm : Form
     {
+        private const int HomeSectionIndex = 0;
+        private const int InspectionSectionIndex = 1;
+        private const int AnalyticsSectionIndex = 2;
         private const int WmSizing = 0x0214;
         private const int WmExitSizeMove = 0x0232;
 
-        private readonly DashboardViewModel _dashboard;
+        private readonly DashboardController _dashboardController;
+        private DashboardViewModel _dashboard;
         private readonly InspectionPageControl _inspectionPage;
         private readonly InspectionAnalyticsControl _analyticsPage;
+        private readonly string _account;
 
         private readonly struct ThemePalette
         {
@@ -147,17 +152,35 @@ namespace App.WinForms.Views
         private Panel _mainArea = null!;
         private Panel _homeView = null!;
         private BufferedPanel _themeToggleButton = null!;
+        private readonly List<DashboardHitRegion> _cardHitRegions = new();
+        private readonly List<DashboardHitRegion> _quickActionHitRegions = new();
+
+        private readonly struct DashboardHitRegion
+        {
+            public DashboardHitRegion(Rectangle bounds, DashboardNavigationTarget target)
+            {
+                Bounds = bounds;
+                Target = target;
+            }
+
+            public Rectangle Bounds { get; }
+
+            public DashboardNavigationTarget Target { get; }
+        }
 
         public MainForm(
-            DashboardViewModel dashboard,
+            DashboardController dashboardController,
             InspectionController inspectionController,
             string account)
         {
-            _dashboard = dashboard;
+            _dashboardController = dashboardController;
+            _dashboard = dashboardController.Load(account);
+            _account = account;
             _inspectionPage = new InspectionPageControl(account, inspectionController)
             {
                 Visible = false
             };
+            _inspectionPage.DataChanged += OnInspectionDataChanged;
             _analyticsPage = new InspectionAnalyticsControl(inspectionController)
             {
                 Visible = false
@@ -408,13 +431,40 @@ namespace App.WinForms.Views
             InvalidateControlTree(this);
         }
 
-        private void SwitchSection(int index)
+        private void ReloadDashboard()
         {
-            var showInspection = index == 1;
-            var showAnalytics = index == 2;
+            _dashboard = _dashboardController.Load(_account);
+            _cardHitRegions.Clear();
+            _quickActionHitRegions.Clear();
+
+            if (_homeView is not null)
+            {
+                InvalidateControlTree(_homeView);
+            }
+        }
+
+        private void OnInspectionDataChanged(object? sender, EventArgs e)
+        {
+            ReloadDashboard();
+            if (_analyticsPage.Visible)
+            {
+                _analyticsPage.RefreshData();
+            }
+        }
+
+        private void SwitchSection(int index, bool refreshInspectionPage = true, bool refreshAnalyticsPage = true)
+        {
+            var showInspection = index == InspectionSectionIndex;
+            var showAnalytics = index == AnalyticsSectionIndex;
+            var showHome = !showInspection && !showAnalytics;
             if (_homeView != null)
             {
-                _homeView.Visible = !showInspection && !showAnalytics;
+                _homeView.Visible = showHome;
+            }
+
+            if (showHome)
+            {
+                ReloadDashboard();
             }
 
             if (_inspectionPage != null)
@@ -423,17 +473,66 @@ namespace App.WinForms.Views
                 if (showInspection)
                 {
                     _inspectionPage.EndInteractiveResize();
-                    _inspectionPage.RefreshData();
+                    if (refreshInspectionPage)
+                    {
+                        _inspectionPage.RefreshData();
+                    }
                 }
             }
 
             if (_analyticsPage != null)
             {
                 _analyticsPage.Visible = showAnalytics;
-                if (showAnalytics)
+                if (showAnalytics && refreshAnalyticsPage)
                 {
                     _analyticsPage.RefreshData();
                 }
+            }
+        }
+
+        private void UpdateNavigationSelection(int index)
+        {
+            _activeNavIndex = index;
+            if (index >= 0 && index < _navItems.Count)
+            {
+                var navItem = _navItems[index];
+                _navIndicator.Location = new Point(10, navItem.Top + (navItem.Height - _navIndicator.Height) / 2);
+            }
+
+            foreach (var item in _navItems)
+            {
+                item.Invalidate();
+            }
+        }
+
+        private void NavigateTo(DashboardNavigationTarget target)
+        {
+            switch (target)
+            {
+                case DashboardNavigationTarget.InspectionToday:
+                    UpdateNavigationSelection(InspectionSectionIndex);
+                    _inspectionPage.ShowTodayRecords();
+                    SwitchSection(InspectionSectionIndex, refreshInspectionPage: false);
+                    break;
+                case DashboardNavigationTarget.InspectionPending:
+                    UpdateNavigationSelection(InspectionSectionIndex);
+                    _inspectionPage.ShowPendingRecords();
+                    SwitchSection(InspectionSectionIndex, refreshInspectionPage: false);
+                    break;
+                case DashboardNavigationTarget.InspectionAbnormal:
+                    UpdateNavigationSelection(InspectionSectionIndex);
+                    _inspectionPage.ShowAbnormalRecords();
+                    SwitchSection(InspectionSectionIndex, refreshInspectionPage: false);
+                    break;
+                case DashboardNavigationTarget.InspectionCreate:
+                    UpdateNavigationSelection(InspectionSectionIndex);
+                    SwitchSection(InspectionSectionIndex);
+                    _inspectionPage.StartNewEntryFromHome();
+                    break;
+                case DashboardNavigationTarget.Analytics:
+                    UpdateNavigationSelection(AnalyticsSectionIndex);
+                    SwitchSection(AnalyticsSectionIndex);
+                    break;
             }
         }
 
@@ -623,11 +722,8 @@ namespace App.WinForms.Views
 
                 navBtn.Click += (s, e) =>
                 {
-                    _activeNavIndex = idx;
-                    _navIndicator.Location = new Point(10, navBtn.Top + (navBtn.Height - _navIndicator.Height) / 2);
+                    UpdateNavigationSelection(idx);
                     SwitchSection(idx);
-                    foreach (var item in _navItems)
-                        item.Invalidate();
                 };
 
                 navBtn.MouseEnter += (s, e) => { isHovered = true; navBtn.Invalidate(); };
@@ -755,14 +851,16 @@ namespace App.WinForms.Views
                 Padding = new Padding(0, 10, 0, 10)
             };
 
-            var cardData = _dashboard.Cards;
+            WireDashboardRegionEvents(container, _cardHitRegions);
 
             container.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                _cardHitRegions.Clear();
 
+                var cardData = _dashboard.Cards;
                 int cardCount = Math.Max(1, cardData.Count);
                 int totalWidth = container.Width - 20;
                 int cardWidth = (totalWidth - 15 * (cardCount - 1)) / cardCount;
@@ -798,6 +896,11 @@ namespace App.WinForms.Views
                     }
 
                     if (alpha < 10) continue;
+
+                    if (cardData[i].NavigationTarget != DashboardNavigationTarget.None)
+                    {
+                        _cardHitRegions.Add(new DashboardHitRegion(rect, cardData[i].NavigationTarget));
+                    }
 
                     // 图标背景圈
                     int iconBgSize = 40;
@@ -849,11 +952,14 @@ namespace App.WinForms.Views
                 Padding = new Padding(0, 10, 0, 10)
             };
 
+            WireDashboardRegionEvents(bottom, _quickActionHitRegions);
+
             bottom.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                _quickActionHitRegions.Clear();
 
                 float delay = 0.4f;
                 float progress = Math.Max(0, Math.Min(1, (_animProgress - delay) * 2f));
@@ -987,6 +1093,11 @@ namespace App.WinForms.Views
                         var btnRect = new Rectangle(rightRect.X + 24, btnY, btnW, btnH - 8);
                         var btnPath = CreateRoundRectPath(btnRect, 12);
 
+                        if (actions[i].NavigationTarget != DashboardNavigationTarget.None)
+                        {
+                            _quickActionHitRegions.Add(new DashboardHitRegion(btnRect, actions[i].NavigationTarget));
+                        }
+
                         // 渐变按钮背景
                         if (_isDarkTheme)
                         {
@@ -1033,6 +1144,44 @@ namespace App.WinForms.Views
         }
 
         // ==================== 动画回调 ====================
+        private void WireDashboardRegionEvents(Control control, IReadOnlyList<DashboardHitRegion> regions)
+        {
+            control.MouseMove += (_, e) =>
+            {
+                control.Cursor = TryGetDashboardTarget(regions, e.Location, out DashboardNavigationTarget _)
+                    ? Cursors.Hand
+                    : Cursors.Default;
+            };
+            control.MouseLeave += (_, _) => control.Cursor = Cursors.Default;
+            control.MouseClick += (_, e) =>
+            {
+                if (TryGetDashboardTarget(regions, e.Location, out var target))
+                {
+                    NavigateTo(target);
+                }
+            };
+        }
+
+        private static bool TryGetDashboardTarget(
+            IReadOnlyList<DashboardHitRegion> regions,
+            Point location,
+            out DashboardNavigationTarget target)
+        {
+            for (var index = regions.Count - 1; index >= 0; index--)
+            {
+                if (!regions[index].Bounds.Contains(location))
+                {
+                    continue;
+                }
+
+                target = regions[index].Target;
+                return true;
+            }
+
+            target = DashboardNavigationTarget.None;
+            return false;
+        }
+
         private void OnAnimTick(object? sender, EventArgs e)
         {
             if (_animProgress < 1.0f)

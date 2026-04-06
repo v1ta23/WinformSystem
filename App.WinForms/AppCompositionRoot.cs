@@ -11,7 +11,6 @@ namespace App.WinForms;
 internal sealed class AppCompositionRoot
 {
     private readonly IAuthenticationService _authenticationService;
-    private readonly IDashboardService _dashboardService;
     private readonly IInspectionRecordService _inspectionRecordService;
 
     public AppCompositionRoot()
@@ -24,7 +23,6 @@ internal sealed class AppCompositionRoot
         var rememberMePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "remember.txt");
         var userRepository = new SqlUserRepository(sqlOptions);
         var rememberMeRepository = new FileRememberMeRepository(rememberMePath);
-        var dashboardRepository = new DemoDashboardRepository();
         var inspectionRecordPath = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory,
             "data",
@@ -37,7 +35,6 @@ internal sealed class AppCompositionRoot
         var inspectionTemplateRepository = new JsonInspectionTemplateRepository(inspectionTemplatePath);
 
         _authenticationService = new AuthenticationService(userRepository, rememberMeRepository);
-        _dashboardService = new DashboardService(dashboardRepository);
         _inspectionRecordService = new InspectionRecordService(
             inspectionRecordRepository,
             inspectionTemplateRepository);
@@ -55,12 +52,12 @@ internal sealed class AppCompositionRoot
 
     public MainForm CreateDashboardForm(string account)
     {
-        var dashboardController = new DashboardController(_dashboardService);
+        var dashboardController = new DashboardController(_inspectionRecordService);
         var inspectionController = new InspectionController(
             _inspectionRecordService,
             new InspectionExcelExporter());
         return new MainForm(
-            dashboardController.Load(account),
+            dashboardController,
             inspectionController,
             account);
     }

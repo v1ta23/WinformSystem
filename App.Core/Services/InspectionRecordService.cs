@@ -403,6 +403,13 @@ public sealed class InspectionRecordService : IInspectionRecordService
             filtered = filtered.Where(record => record.Status == query.Status.Value);
         }
 
+        if (query.PendingOnly)
+        {
+            filtered = filtered.Where(record =>
+                record.Status != InspectionStatus.Normal &&
+                !record.ClosedAt.HasValue);
+        }
+
         if (query.StartTime.HasValue)
         {
             filtered = filtered.Where(record => record.CheckedAt >= query.StartTime.Value);
