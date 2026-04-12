@@ -206,6 +206,8 @@ namespace WinFormsApp.Views
         private readonly List<Panel> _navItems = new List<Panel>();
         private bool _isDarkTheme = true;
         private bool _isInteractiveResize;
+        private bool _isWindowMoveSizeLoop;
+        private bool _resumeHomeAnimationAfterMoveSize;
         private bool _resumeHomeAnimationAfterResize;
         private IInteractiveResizeAware? _activeInteractiveResizePage;
         private Panel _navIndicator = null!;
@@ -449,7 +451,12 @@ namespace WinFormsApp.Views
 
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == WmEnterSizeMove || m.Msg == WmSizing)
+            if (m.Msg == WmEnterSizeMove)
+            {
+                BeginWindowMoveSizeLoop();
+            }
+
+            if (m.Msg == WmSizing)
             {
                 BeginInteractiveResize();
             }
@@ -459,6 +466,7 @@ namespace WinFormsApp.Views
             if (m.Msg == WmExitSizeMove)
             {
                 EndInteractiveResize();
+                EndWindowMoveSizeLoop();
             }
         }
 
@@ -578,6 +586,37 @@ namespace WinFormsApp.Views
             }
 
             _resumeHomeAnimationAfterResize = false;
+        }
+
+        private void BeginWindowMoveSizeLoop()
+        {
+            if (_isWindowMoveSizeLoop)
+            {
+                return;
+            }
+
+            _isWindowMoveSizeLoop = true;
+            if (_animTimer.Enabled)
+            {
+                _resumeHomeAnimationAfterMoveSize = _animProgress < 1.0f;
+                _animTimer.Stop();
+            }
+        }
+
+        private void EndWindowMoveSizeLoop()
+        {
+            if (!_isWindowMoveSizeLoop)
+            {
+                return;
+            }
+
+            _isWindowMoveSizeLoop = false;
+            if (_resumeHomeAnimationAfterMoveSize && _animProgress < 1.0f && !_animTimer.Enabled)
+            {
+                _animTimer.Start();
+            }
+
+            _resumeHomeAnimationAfterMoveSize = false;
         }
 
         private IInteractiveResizeAware? GetVisibleInteractiveResizeAware()
