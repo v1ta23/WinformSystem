@@ -570,7 +570,11 @@ internal static class PageChrome
                 return;
             }
 
-            var targetHeight = Math.Max(HeaderHeight, control.Height + control.Margin.Vertical);
+            var layoutWidth = layout.ClientSize.Width > 0
+                ? layout.ClientSize.Width
+                : control.Width;
+            var preferredHeight = control.GetPreferredSize(new Size(Math.Max(1, layoutWidth - control.Margin.Horizontal), 0)).Height;
+            var targetHeight = Math.Max(HeaderHeight, preferredHeight + control.Margin.Vertical);
             if (lastHeight == targetHeight)
             {
                 return;
@@ -585,6 +589,9 @@ internal static class PageChrome
 
         control.SizeChanged += SyncRowHeight;
         control.VisibleChanged += SyncRowHeight;
+        layout.Layout += SyncRowHeight;
+        layout.SizeChanged += SyncRowHeight;
+        layout.VisibleChanged += SyncRowHeight;
         SyncRowHeight(null, EventArgs.Empty);
     }
 

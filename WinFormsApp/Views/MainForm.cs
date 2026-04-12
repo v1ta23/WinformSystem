@@ -1158,6 +1158,7 @@ namespace WinFormsApp.Views
             {
                 activeSection.Visible = true;
                 activeSection.BringToFront();
+                activeSection.CreateControl();
                 activeSection.PerformLayout();
             }
 
@@ -1173,7 +1174,7 @@ namespace WinFormsApp.Views
             {
                 InvalidateControlTree(activeSection);
                 activeSection.Update();
-                QueueSectionLayoutPass(activeSection, useSwitchMask);
+                QueueSectionLayoutPass(activeSection, useSwitchMask, 2);
             }
             else if (useSwitchMask)
             {
@@ -1224,7 +1225,7 @@ namespace WinFormsApp.Views
             _sectionSwitchMask.SendToBack();
         }
 
-        private void QueueSectionLayoutPass(Control activeSection, bool hideSwitchMask)
+        private void QueueSectionLayoutPass(Control activeSection, bool hideSwitchMask, int remainingPasses)
         {
             if (!IsHandleCreated)
             {
@@ -1238,19 +1239,17 @@ namespace WinFormsApp.Views
 
             BeginInvoke(new MethodInvoker(() =>
             {
-                if (IsDisposed || !activeSection.Visible)
+                if (!TryPrepareVisibleSection(activeSection, hideSwitchMask))
                 {
-                    if (hideSwitchMask)
-                    {
-                        HideSectionSwitchMask();
-                    }
-
                     return;
                 }
 
-                activeSection.PerformLayout();
-                InvalidateControlTree(activeSection);
-                activeSection.Update();
+                if (remainingPasses > 1)
+                {
+                    QueueSectionLayoutPass(activeSection, hideSwitchMask, remainingPasses - 1);
+                    return;
+                }
+
                 _mainArea?.Invalidate(true);
                 _mainArea?.Update();
                 if (hideSwitchMask)
@@ -1258,6 +1257,25 @@ namespace WinFormsApp.Views
                     HideSectionSwitchMask();
                 }
             }));
+        }
+
+        private bool TryPrepareVisibleSection(Control activeSection, bool hideSwitchMask)
+        {
+            if (IsDisposed || !activeSection.Visible)
+            {
+                if (hideSwitchMask)
+                {
+                    HideSectionSwitchMask();
+                }
+
+                return false;
+            }
+
+            activeSection.PerformLayout();
+            InvalidateControlTree(activeSection);
+            activeSection.Update();
+            _mainArea?.PerformLayout();
+            return true;
         }
 
         private void UpdateNavigationSelection(int index)
