@@ -16,7 +16,6 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     private static readonly Color SurfaceBorder = PageChrome.SurfaceBorder;
     private static readonly Color InputBackground = PageChrome.InputBackground;
     private static readonly Color TextPrimaryColor = PageChrome.TextPrimary;
-    private static readonly Color TextSecondaryColor = PageChrome.TextSecondary;
     private static readonly Color TextMutedColor = PageChrome.TextMuted;
     private static readonly Color AccentBlue = PageChrome.AccentBlue;
     private static readonly Color AccentGreen = PageChrome.AccentGreen;
@@ -37,20 +36,14 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     private readonly PageChrome.ReadOnlyTextBlock _validationBlock;
     private readonly PageChrome.ReadOnlyTextBlock _nextStepBlock;
 
-    private Label _actionFileValueLabel = null!;
-    private Label _actionStatusValueLabel = null!;
     private Label _previewSubtitleLabel = null!;
     private Label _validationSubtitleLabel = null!;
     private Label _statusSubtitleLabel = null!;
     private Label _nextStepSubtitleLabel = null!;
-    private Label _statusFileValueLabel = null!;
-    private Label _statusFileNoteLabel = null!;
-    private Label _statusValidValueLabel = null!;
-    private Label _statusValidNoteLabel = null!;
-    private Label _statusRiskValueLabel = null!;
-    private Label _statusRiskNoteLabel = null!;
-    private Label _statusStateValueLabel = null!;
-    private Label _statusStateNoteLabel = null!;
+    private StatusSummaryRow _statusFileRow = null!;
+    private StatusSummaryRow _statusValidRow = null!;
+    private StatusSummaryRow _statusRiskRow = null!;
+    private StatusSummaryRow _statusStateRow = null!;
 
     private CsvPreviewState? _currentPreview;
     private InspectionImportResultViewModel? _lastImportResult;
@@ -81,19 +74,17 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
             Dock = DockStyle.Fill,
             BackColor = Color.Transparent,
             ColumnCount = 1,
-            RowCount = 3
+            RowCount = 2
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96F));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         var header = BuildHeader();
         PageChrome.BindControlHeightToRow(root, 0, header);
 
         root.Controls.Add(header, 0, 0);
-        root.Controls.Add(BuildActionBar(), 0, 1);
-        root.Controls.Add(BuildWorkspaceArea(), 0, 2);
+        root.Controls.Add(BuildWorkspaceArea(), 0, 1);
 
         _layoutRoot = root;
         Controls.Add(root);
@@ -149,79 +140,12 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         return PageChrome.CreatePageHeader(
             "数据导入",
             "这个页只负责导入，先校验再导入，后续处理回巡检页继续做。",
-            _generatedAtLabel);
-    }
-
-    private Control BuildActionBar()
-    {
-        var shell = PageChrome.CreateSurfacePanel(new Padding(20, 14, 20, 14));
-        shell.Margin = new Padding(0, 0, 0, 12);
-
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            ColumnCount = 2,
-            RowCount = 1
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        _actionFileValueLabel = new Label
-        {
-            AutoEllipsis = true,
-            AutoSize = false,
-            Dock = DockStyle.Top,
-            Height = 28,
-            Font = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold),
-            ForeColor = TextPrimaryColor,
-            Margin = Padding.Empty,
-            Text = "--"
-        };
-        _actionStatusValueLabel = PageChrome.CreateNoteLabel();
-        _actionStatusValueLabel.Dock = DockStyle.Top;
-        _actionStatusValueLabel.Margin = new Padding(0, 6, 0, 0);
-
-        var titlePanel = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            ColumnCount = 1,
-            RowCount = 3,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty
-        };
-        titlePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        titlePanel.Controls.Add(PageChrome.CreateNoteLabel("当前文件", 8.8F, TextMutedColor), 0, 0);
-        titlePanel.Controls.Add(_actionFileValueLabel, 0, 1);
-        titlePanel.Controls.Add(_actionStatusValueLabel, 0, 2);
-
-        var buttonPanel = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Top,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-            Margin = Padding.Empty
-        };
-        buttonPanel.Controls.Add(_selectFileButton);
-        buttonPanel.Controls.Add(_importButton);
-        buttonPanel.Controls.Add(_viewImportedButton);
-        buttonPanel.Controls.Add(_viewPendingButton);
-        buttonPanel.Controls.Add(_clearButton);
-
-        layout.Controls.Add(titlePanel, 0, 0);
-        layout.Controls.Add(buttonPanel, 1, 0);
-        shell.Controls.Add(layout);
-        return shell;
+            _generatedAtLabel,
+            _selectFileButton,
+            _importButton,
+            _viewImportedButton,
+            _viewPendingButton,
+            _clearButton);
     }
 
     private Control BuildWorkspaceArea()
@@ -279,10 +203,78 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
         statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
 
-        statusLayout.Controls.Add(CreateStatusRow("当前文件", AccentBlue, out _statusFileValueLabel, out _statusFileNoteLabel, new Padding(0, 0, 0, 8)), 0, 0);
-        statusLayout.Controls.Add(CreateStatusRow("有效记录", AccentGreen, out _statusValidValueLabel, out _statusValidNoteLabel, new Padding(0, 0, 0, 8)), 0, 1);
-        statusLayout.Controls.Add(CreateStatusRow("风险记录", AccentOrange, out _statusRiskValueLabel, out _statusRiskNoteLabel, new Padding(0, 0, 0, 8)), 0, 2);
-        statusLayout.Controls.Add(CreateStatusRow("当前状态", AccentRed, out _statusStateValueLabel, out _statusStateNoteLabel, Padding.Empty), 0, 3);
+        _statusFileRow = CreateStatusRow("当前文件", AccentBlue, new Padding(0, 0, 0, 8));
+        _statusValidRow = CreateStatusRow("有效记录", AccentGreen, new Padding(0, 0, 0, 8));
+        _statusRiskRow = CreateStatusRow("风险记录", AccentOrange, new Padding(0, 0, 0, 8));
+        _statusStateRow = CreateStatusRow("当前状态", AccentRed, Padding.Empty);
+
+        var statusLayoutUsesCompactGrid = false;
+
+        void ApplyStatusLayout()
+        {
+            var layoutHeight = statusLayout.ClientSize.Height;
+            var useCompactGrid = statusLayout.ClientSize.Width >= 360 && layoutHeight > 0 && layoutHeight < 120;
+            if (statusLayout.Controls.Count == 4 && statusLayoutUsesCompactGrid == useCompactGrid)
+            {
+                return;
+            }
+
+            statusLayoutUsesCompactGrid = useCompactGrid;
+            statusLayout.SuspendLayout();
+            statusLayout.Controls.Clear();
+            statusLayout.ColumnStyles.Clear();
+            statusLayout.RowStyles.Clear();
+
+            if (useCompactGrid)
+            {
+                statusLayout.ColumnCount = 2;
+                statusLayout.RowCount = 2;
+                statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+                statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+
+                _statusFileRow.Margin = new Padding(0, 0, 8, 8);
+                _statusValidRow.Margin = new Padding(0, 0, 0, 8);
+                _statusRiskRow.Margin = new Padding(0, 0, 8, 0);
+                _statusStateRow.Margin = Padding.Empty;
+
+                statusLayout.Controls.Add(_statusFileRow, 0, 0);
+                statusLayout.Controls.Add(_statusValidRow, 1, 0);
+                statusLayout.Controls.Add(_statusRiskRow, 0, 1);
+                statusLayout.Controls.Add(_statusStateRow, 1, 1);
+            }
+            else
+            {
+                statusLayout.ColumnCount = 1;
+                statusLayout.RowCount = 4;
+                statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+                statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+
+                _statusFileRow.Margin = new Padding(0, 0, 0, 8);
+                _statusValidRow.Margin = new Padding(0, 0, 0, 8);
+                _statusRiskRow.Margin = new Padding(0, 0, 0, 8);
+                _statusStateRow.Margin = Padding.Empty;
+
+                statusLayout.Controls.Add(_statusFileRow, 0, 0);
+                statusLayout.Controls.Add(_statusValidRow, 0, 1);
+                statusLayout.Controls.Add(_statusRiskRow, 0, 2);
+                statusLayout.Controls.Add(_statusStateRow, 0, 3);
+            }
+
+            statusLayout.ResumeLayout(true);
+        }
+
+        statusLayout.SizeChanged += (_, _) => ApplyStatusLayout();
+
+        statusLayout.Controls.Add(_statusFileRow, 0, 0);
+        statusLayout.Controls.Add(_statusValidRow, 0, 1);
+        statusLayout.Controls.Add(_statusRiskRow, 0, 2);
+        statusLayout.Controls.Add(_statusStateRow, 0, 3);
+        ApplyStatusLayout();
 
         return PageChrome.CreateSectionShell(
             "导入状态",
@@ -315,54 +307,163 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         return shell;
     }
 
-    private static PageChrome.ChromePanel CreateStatusRow(string title, Color accent, out Label valueLabel, out Label noteLabel, Padding margin)
+    private static StatusSummaryRow CreateStatusRow(string title, Color accent, Padding margin)
     {
-        var shell = PageChrome.CreateSurfacePanel(
-            new Padding(12, 8, 12, 8),
-            14,
-            fillColor: InputBackground,
-            borderColor: Color.FromArgb(70, SurfaceBorder));
-        shell.Margin = margin;
-
-        var marker = new Panel
+        return new StatusSummaryRow(title, accent)
         {
-            Dock = DockStyle.Top,
-            Size = new Size(8, 8),
-            BackColor = accent,
-            Margin = new Padding(0, 7, 10, 0)
+            Margin = margin
         };
+    }
 
-        var titleLabel = PageChrome.CreateNoteLabel(title, 8.8F, TextMutedColor);
-        valueLabel = PageChrome.CreateValueLabel(12.5F, "--");
-        noteLabel = PageChrome.CreateNoteLabel();
-        noteLabel.AutoSize = false;
-        noteLabel.Dock = DockStyle.Top;
-        noteLabel.Height = 18;
-        noteLabel.TextAlign = ContentAlignment.MiddleLeft;
+    private sealed class StatusSummaryRow : Control
+    {
+        private readonly Font _titleFont = new("Microsoft YaHei UI", 8.8F);
+        private readonly Font _valueFont = new("Microsoft YaHei UI", 12.5F, FontStyle.Bold);
+        private readonly Font _noteFont = new("Microsoft YaHei UI", 8.6F);
+        private readonly Color _accent;
+        private string _valueText = "--";
+        private string _noteText = string.Empty;
 
-        var layout = new TableLayoutPanel
+        public StatusSummaryRow(string title, Color accent)
         {
-            Dock = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            ColumnCount = 3,
-            RowCount = 2,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20F));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.Controls.Add(marker, 0, 0);
-        layout.SetRowSpan(marker, 2);
-        layout.Controls.Add(titleLabel, 1, 0);
-        layout.Controls.Add(valueLabel, 2, 0);
-        layout.Controls.Add(noteLabel, 1, 1);
-        layout.SetColumnSpan(noteLabel, 2);
+            Title = title;
+            _accent = accent;
+            Dock = DockStyle.Fill;
+            Padding = new Padding(12, 5, 12, 5);
+            BackColor = SurfaceBackground;
+            SetStyle(
+                ControlStyles.UserPaint |
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.ResizeRedraw,
+                true);
+        }
 
-        shell.Controls.Add(layout);
-        return shell;
+        public string Title { get; }
+
+        public string ValueText
+        {
+            get => _valueText;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (_valueText == next)
+                {
+                    return;
+                }
+
+                _valueText = next;
+                Invalidate();
+            }
+        }
+
+        public string NoteText
+        {
+            get => _noteText;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (_noteText == next)
+                {
+                    return;
+                }
+
+                _noteText = next;
+                Invalidate();
+            }
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using var backgroundBrush = new SolidBrush(SurfaceBackground);
+            e.Graphics.FillRectangle(backgroundBrush, ClientRectangle);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (Width <= 1 || Height <= 1)
+            {
+                return;
+            }
+
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            var outerRect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (var path = PageChrome.CreateRoundedPath(outerRect, 12))
+            using (var fillBrush = new SolidBrush(InputBackground))
+            using (var borderPen = new Pen(Color.FromArgb(70, SurfaceBorder)))
+            {
+                e.Graphics.FillPath(fillBrush, path);
+                e.Graphics.DrawPath(borderPen, path);
+            }
+
+            var contentBounds = new Rectangle(
+                Padding.Left,
+                Padding.Top,
+                Math.Max(0, Width - Padding.Horizontal),
+                Math.Max(0, Height - Padding.Vertical));
+            if (contentBounds.Width <= 0 || contentBounds.Height <= 0)
+            {
+                return;
+            }
+
+            const TextFormatFlags leftFlags =
+                TextFormatFlags.Left |
+                TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis |
+                TextFormatFlags.NoPrefix |
+                TextFormatFlags.PreserveGraphicsTranslateTransform;
+            const TextFormatFlags rightFlags =
+                TextFormatFlags.Right |
+                TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis |
+                TextFormatFlags.NoPrefix |
+                TextFormatFlags.PreserveGraphicsTranslateTransform;
+
+            var markerRect = new Rectangle(contentBounds.X, contentBounds.Y + Math.Max(0, (contentBounds.Height - 4) / 2), 12, 4);
+            using (var markerBrush = new SolidBrush(_accent))
+            {
+                e.Graphics.FillRectangle(markerBrush, markerRect);
+            }
+
+            var textLeft = markerRect.Right + 12;
+            var textWidth = Math.Max(0, contentBounds.Right - textLeft);
+            if (textWidth <= 0)
+            {
+                return;
+            }
+
+            var valueWidth = Math.Min(Math.Max(96, textWidth / 3), Math.Max(96, textWidth - 80));
+            var titleWidth = Math.Max(0, textWidth - valueWidth - 12);
+            var titleBounds = new Rectangle(textLeft, contentBounds.Y, titleWidth, contentBounds.Height);
+            var valueBounds = new Rectangle(contentBounds.Right - valueWidth, contentBounds.Y, valueWidth, contentBounds.Height);
+
+            var noteFits = !string.IsNullOrWhiteSpace(NoteText) && contentBounds.Height >= _titleFont.Height + _noteFont.Height + 6;
+            if (noteFits)
+            {
+                var noteBounds = new Rectangle(textLeft, contentBounds.Y + _titleFont.Height + 2, textWidth, Math.Max(0, contentBounds.Height - _titleFont.Height - 2));
+                titleBounds = new Rectangle(textLeft, contentBounds.Y, titleWidth, _titleFont.Height + 2);
+                valueBounds = new Rectangle(contentBounds.Right - valueWidth, contentBounds.Y, valueWidth, _titleFont.Height + 2);
+                TextRenderer.DrawText(e.Graphics, NoteText, _noteFont, noteBounds, TextMutedColor, leftFlags);
+            }
+
+            TextRenderer.DrawText(e.Graphics, Title, _titleFont, titleBounds, TextMutedColor, leftFlags);
+            TextRenderer.DrawText(e.Graphics, ValueText, _valueFont, valueBounds, TextPrimaryColor, rightFlags);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _titleFont.Dispose();
+                _valueFont.Dispose();
+                _noteFont.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
     }
 
     private void ChooseCsvFile()
@@ -433,36 +534,11 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
     private void RefreshDisplayState()
     {
-        UpdateActionBar();
         UpdatePreviewSubtitle();
         UpdateStatusSummary();
         UpdateValidationSummary();
         UpdateNextStepSummary();
         UpdateActionState();
-    }
-
-    private void UpdateActionBar()
-    {
-        if (_lastImportResult is not null)
-        {
-            _actionFileValueLabel.Text = _lastImportResult.SourceFileName;
-            _actionStatusValueLabel.Text = _lastImportResult.PendingCount > 0
-                ? $"已导入，当前还有 {_lastImportResult.PendingCount} 条待闭环。"
-                : $"已导入完成，批次 {_lastImportResult.BatchKeyword}。";
-            return;
-        }
-
-        if (_currentPreview is not null)
-        {
-            _actionFileValueLabel.Text = _currentPreview.FileName;
-            _actionStatusValueLabel.Text = _currentPreview.CanImport
-                ? "校验通过，可以直接确认导入。"
-                : $"校验未通过，当前有 {_currentPreview.ValidationErrors.Count} 个阻断问题。";
-            return;
-        }
-
-        _actionFileValueLabel.Text = "还没有加载文件";
-        _actionStatusValueLabel.Text = "先选 CSV，再看校验结果。";
     }
 
     private void UpdatePreviewSubtitle()
@@ -492,18 +568,18 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
                 ? $"导入完成，本批次还有 {_lastImportResult.PendingCount} 条待闭环。"
                 : "导入完成，这批数据没有新增待闭环。";
 
-            _statusFileValueLabel.Text = _lastImportResult.SourceFileName;
-            _statusFileNoteLabel.Text = $"批次 {_lastImportResult.BatchKeyword}";
+            _statusFileRow.ValueText = _lastImportResult.SourceFileName;
+            _statusFileRow.NoteText = $"批次 {_lastImportResult.BatchKeyword}";
 
-            _statusValidValueLabel.Text = _lastImportResult.ImportedCount.ToString();
-            _statusValidNoteLabel.Text = $"模板新增 {_lastImportResult.TemplateCreatedCount} / 更新 {_lastImportResult.TemplateUpdatedCount}";
+            _statusValidRow.ValueText = _lastImportResult.ImportedCount.ToString();
+            _statusValidRow.NoteText = $"模板新增 {_lastImportResult.TemplateCreatedCount} / 更新 {_lastImportResult.TemplateUpdatedCount}";
 
             var riskCount = _lastImportResult.WarningCount + _lastImportResult.AbnormalCount;
-            _statusRiskValueLabel.Text = riskCount.ToString();
-            _statusRiskNoteLabel.Text = $"预警 {_lastImportResult.WarningCount} / 异常 {_lastImportResult.AbnormalCount}";
+            _statusRiskRow.ValueText = riskCount.ToString();
+            _statusRiskRow.NoteText = $"预警 {_lastImportResult.WarningCount} / 异常 {_lastImportResult.AbnormalCount}";
 
-            _statusStateValueLabel.Text = "已导入";
-            _statusStateNoteLabel.Text = _lastImportResult.PendingCount > 0
+            _statusStateRow.ValueText = "已导入";
+            _statusStateRow.NoteText = _lastImportResult.PendingCount > 0
                 ? "下一步建议查看待闭环。"
                 : "下一步建议查看本批记录。";
             return;
@@ -515,34 +591,34 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
                 ? "校验通过，可以直接导入。"
                 : $"当前文件还有 {_currentPreview.ValidationErrors.Count} 个阻断问题。";
 
-            _statusFileValueLabel.Text = _currentPreview.FileName;
-            _statusFileNoteLabel.Text = $"原始 {_currentPreview.RowCount} 行 / {_currentPreview.ColumnCount} 列";
+            _statusFileRow.ValueText = _currentPreview.FileName;
+            _statusFileRow.NoteText = $"原始 {_currentPreview.RowCount} 行 / {_currentPreview.ColumnCount} 列";
 
-            _statusValidValueLabel.Text = _currentPreview.ValidEntryCount.ToString();
-            _statusValidNoteLabel.Text = _currentPreview.CanImport
+            _statusValidRow.ValueText = _currentPreview.ValidEntryCount.ToString();
+            _statusValidRow.NoteText = _currentPreview.CanImport
                 ? "模板校验通过，可写入系统。"
                 : "有错误的行不会进入导入列表。";
 
             var riskCount = _currentPreview.WarningCount + _currentPreview.AbnormalCount;
-            _statusRiskValueLabel.Text = riskCount.ToString();
-            _statusRiskNoteLabel.Text = $"正常 {_currentPreview.NormalCount} / 预警 {_currentPreview.WarningCount} / 异常 {_currentPreview.AbnormalCount}";
+            _statusRiskRow.ValueText = riskCount.ToString();
+            _statusRiskRow.NoteText = $"正常 {_currentPreview.NormalCount} / 预警 {_currentPreview.WarningCount} / 异常 {_currentPreview.AbnormalCount}";
 
-            _statusStateValueLabel.Text = _currentPreview.CanImport ? "待导入" : "不可导入";
-            _statusStateNoteLabel.Text = _currentPreview.CanImport
+            _statusStateRow.ValueText = _currentPreview.CanImport ? "待导入" : "不可导入";
+            _statusStateRow.NoteText = _currentPreview.CanImport
                 ? "下一步点“确认导入”。"
                 : "先修正右上的阻断问题。";
             return;
         }
 
         _statusSubtitleLabel.Text = "还没有文件。";
-        _statusFileValueLabel.Text = "--";
-        _statusFileNoteLabel.Text = "先点上面的“选择 CSV 文件”。";
-        _statusValidValueLabel.Text = "0";
-        _statusValidNoteLabel.Text = "导入后显示有效记录数。";
-        _statusRiskValueLabel.Text = "0";
-        _statusRiskNoteLabel.Text = "导入后显示预警和异常。";
-        _statusStateValueLabel.Text = "未开始";
-        _statusStateNoteLabel.Text = "先选文件，再决定是否导入。";
+        _statusFileRow.ValueText = "--";
+        _statusFileRow.NoteText = "先点上面的“选择 CSV 文件”。";
+        _statusValidRow.ValueText = "0";
+        _statusValidRow.NoteText = "导入后显示有效记录数。";
+        _statusRiskRow.ValueText = "0";
+        _statusRiskRow.NoteText = "导入后显示预警和异常。";
+        _statusStateRow.ValueText = "未开始";
+        _statusStateRow.NoteText = "先选文件，再决定是否导入。";
     }
 
     private void UpdateValidationSummary()

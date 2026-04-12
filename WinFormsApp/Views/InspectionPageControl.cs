@@ -54,7 +54,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
     private readonly Panel _trendChart;
     private readonly Panel _statusChart;
     private readonly Control _layoutRoot;
-    private readonly PictureBox _resizeSnapshotBox;
+    private readonly InteractiveResizeFreezeController _interactiveResizeController;
     private Panel? _headerCard;
     private TableLayoutPanel? _headerLayout;
     private Panel? _headerTitlePanel;
@@ -91,7 +91,6 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
     private bool _screenInitialized;
     private bool _hasDeferredPreset;
     private Guid? _editingRecordId;
-    private Bitmap? _resizeSnapshot;
     private string _activePresetLabel = string.Empty;
     private string _deferredPresetLabel = string.Empty;
     private InspectionFilterViewModel _deferredPresetFilter = new();
@@ -344,14 +343,14 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         _statusChart = CreateStatusCanvas();
 
         _layoutRoot = BuildLayout();
-        _resizeSnapshotBox = CreateResizeSnapshotBox();
         Controls.Add(_layoutRoot);
-        Controls.Add(_resizeSnapshotBox);
+        _interactiveResizeController = new InteractiveResizeFreezeController(this, _layoutRoot, PageBackground);
+        _layoutRoot.BringToFront();
         ApplyDarkVisualTree(this);
         Load += (_, _) => InitializeScreen();
         Disposed += (_, _) =>
         {
-            DisposeResizeSnapshot();
+            _interactiveResizeController.Dispose();
             DisposeFloatingWindows();
         };
     }
@@ -959,7 +958,15 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         base.OnVisibleChanged(e);
         if (Visible)
         {
+            QueueVisibleLayoutPass();
             return;
+        }
+
+        if (_isInteractiveResize)
+        {
+            _isInteractiveResize = false;
+            _interactiveResizeController.End();
+            ResumeGridAutosize();
         }
 
         HideEntryWindow();
@@ -1166,11 +1173,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
 
         _isInteractiveResize = true;
         SuspendGridAutosize();
-        CaptureResizeSnapshot();
-        _layoutRoot.SuspendLayout();
-        _layoutRoot.Visible = false;
-        _resizeSnapshotBox.Visible = true;
-        _resizeSnapshotBox.BringToFront();
+        _interactiveResizeController.Begin();
     }
 
     public void EndInteractiveResize()
@@ -1181,19 +1184,19 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         }
 
         _isInteractiveResize = false;
-        _resizeSnapshotBox.Visible = false;
-        _layoutRoot.Visible = true;
-        _layoutRoot.ResumeLayout(true);
-        DisposeResizeSnapshot();
+        _interactiveResizeController.End();
         ResumeGridAutosize();
         ApplyResponsiveLayout();
+        _layoutRoot.PerformLayout();
+        PerformLayout();
         if (_chartsPanel?.Visible == true)
         {
             _trendChart.Invalidate();
             _statusChart.Invalidate();
         }
 
-        Invalidate();
+        Invalidate(true);
+        Update();
     }
 
     private void ApplyResponsiveLayout()
@@ -1485,67 +1488,26 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
     {
     }
 
-    private PictureBox CreateResizeSnapshotBox()
+    private void QueueVisibleLayoutPass()
     {
-        var box = new PictureBox
-        {
-            BackColor = PageBackground,
-            Dock = DockStyle.Fill,
-            SizeMode = PictureBoxSizeMode.StretchImage,
-            Visible = false
-        };
-
-        box.Paint += (_, e) =>
-        {
-            if (box.Image is not null)
-            {
-                return;
-            }
-
-            using var titleFont = new Font("Microsoft YaHei UI", 16F, FontStyle.Bold);
-            using var subtitleFont = new Font("Microsoft YaHei UI", 9.5F);
-            using var titleBrush = new SolidBrush(TextPrimaryColor);
-            using var subtitleBrush = new SolidBrush(TextMutedColor);
-
-            var titleText = "Resizing window...";
-            var subtitleText = "Layout and charts will refresh after resize.";
-            var titleSize = e.Graphics.MeasureString(titleText, titleFont);
-            var subtitleSize = e.Graphics.MeasureString(subtitleText, subtitleFont);
-            var centerX = box.ClientSize.Width / 2F;
-            var centerY = box.ClientSize.Height / 2F;
-
-            e.Graphics.DrawString(titleText, titleFont, titleBrush, centerX - titleSize.Width / 2F, centerY - 24F);
-            e.Graphics.DrawString(subtitleText, subtitleFont, subtitleBrush, centerX - subtitleSize.Width / 2F, centerY + 8F);
-        };
-
-        return box;
-    }
-
-    private void CaptureResizeSnapshot()
-    {
-        DisposeResizeSnapshot();
-        if (_layoutRoot.Width <= 0 || _layoutRoot.Height <= 0)
+        if (!Visible || !IsHandleCreated)
         {
             return;
         }
 
-        try
+        BeginInvoke(new MethodInvoker(() =>
         {
-            _resizeSnapshot = new Bitmap(_layoutRoot.Width, _layoutRoot.Height);
-            _layoutRoot.DrawToBitmap(_resizeSnapshot, new Rectangle(Point.Empty, _layoutRoot.Size));
-            _resizeSnapshotBox.Image = _resizeSnapshot;
-        }
-        catch
-        {
-            DisposeResizeSnapshot();
-        }
-    }
+            if (IsDisposed || !Visible)
+            {
+                return;
+            }
 
-    private void DisposeResizeSnapshot()
-    {
-        _resizeSnapshotBox.Image = null;
-        _resizeSnapshot?.Dispose();
-        _resizeSnapshot = null;
+            ApplyResponsiveLayout();
+            _layoutRoot.PerformLayout();
+            PerformLayout();
+            Invalidate(true);
+            Update();
+        }));
     }
 
     private void OnSaveClicked(object? sender, EventArgs e)

@@ -206,10 +206,12 @@ namespace WinFormsApp.Views
         private readonly List<Panel> _navItems = new List<Panel>();
         private bool _isDarkTheme = true;
         private bool _isInteractiveResize;
+        private bool _resumeHomeAnimationAfterResize;
         private IInteractiveResizeAware? _activeInteractiveResizePage;
         private Panel _navIndicator = null!;
         private Panel _sidebar = null!;
         private Panel _mainArea = null!;
+        private Panel _sectionSwitchMask = null!;
         private Panel _homeView = null!;
         private Panel _homeHeader = null!;
         private Panel _homeCardsArea = null!;
@@ -549,6 +551,7 @@ namespace WinFormsApp.Views
             _isInteractiveResize = true;
             if (_animTimer.Enabled)
             {
+                _resumeHomeAnimationAfterResize = _animProgress < 1.0f;
                 _animTimer.Stop();
             }
 
@@ -569,6 +572,12 @@ namespace WinFormsApp.Views
 
             InvalidateHomeSections();
             Invalidate(true);
+            if (_resumeHomeAnimationAfterResize && _animProgress < 1.0f)
+            {
+                _animTimer.Start();
+            }
+
+            _resumeHomeAnimationAfterResize = false;
         }
 
         private IInteractiveResizeAware? GetVisibleInteractiveResizeAware()
@@ -635,6 +644,14 @@ namespace WinFormsApp.Views
             mainArea.Controls.Add(_analyticsPage);
             mainArea.Controls.Add(_dataInsightPage);
             mainArea.Controls.Add(homeView);
+            _sectionSwitchMask = new BufferedPanel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = MainAreaBackground,
+                Visible = false,
+                Enabled = false
+            };
+            mainArea.Controls.Add(_sectionSwitchMask);
 
             this.Controls.Add(mainArea);
 
@@ -949,6 +966,8 @@ namespace WinFormsApp.Views
                 _mainArea.BackColor = MainAreaBackground;
             if (_sidebar != null)
                 _sidebar.BackColor = theme.Sidebar;
+            if (_sectionSwitchMask != null)
+                _sectionSwitchMask.BackColor = MainAreaBackground;
 
             SetDarkTitleBar();
             EnableAcrylicBlur();
@@ -1050,6 +1069,11 @@ namespace WinFormsApp.Views
             var showDataInsight = index == DataInsightSectionIndex;
             var previousResizeAware = GetVisibleInteractiveResizeAware();
 
+            if (!showHome)
+            {
+                FinishHomeIntroAnimation();
+            }
+
             previousResizeAware?.EndInteractiveResize();
             if (ReferenceEquals(_activeInteractiveResizePage, previousResizeAware))
             {
@@ -1091,6 +1115,16 @@ namespace WinFormsApp.Views
                 return;
             }
 
+            var useSwitchMask = !showHome;
+            if (useSwitchMask)
+            {
+                ShowSectionSwitchMask();
+            }
+            else
+            {
+                HideSectionSwitchMask();
+            }
+
             _mainArea.SuspendLayout();
 
             if (_homeView != null)
@@ -1125,6 +1159,11 @@ namespace WinFormsApp.Views
                 activeSection.PerformLayout();
             }
 
+            if (useSwitchMask)
+            {
+                _sectionSwitchMask.BringToFront();
+            }
+
             _mainArea.ResumeLayout(true);
             _mainArea.PerformLayout();
             _mainArea.Invalidate(true);
@@ -1132,9 +1171,91 @@ namespace WinFormsApp.Views
             {
                 InvalidateControlTree(activeSection);
                 activeSection.Update();
+                QueueSectionLayoutPass(activeSection, useSwitchMask);
+            }
+            else if (useSwitchMask)
+            {
+                HideSectionSwitchMask();
             }
 
             _mainArea.Update();
+        }
+
+        private void FinishHomeIntroAnimation()
+        {
+            if (_animProgress >= 1.0f)
+            {
+                return;
+            }
+
+            _animProgress = 1.0f;
+            _resumeHomeAnimationAfterResize = false;
+            if (_animTimer.Enabled)
+            {
+                _animTimer.Stop();
+            }
+
+            InvalidateHomeSections();
+        }
+
+        private void ShowSectionSwitchMask()
+        {
+            if (_sectionSwitchMask is null)
+            {
+                return;
+            }
+
+            _sectionSwitchMask.BackColor = MainAreaBackground;
+            _sectionSwitchMask.Visible = true;
+            _sectionSwitchMask.BringToFront();
+            _sectionSwitchMask.Update();
+        }
+
+        private void HideSectionSwitchMask()
+        {
+            if (_sectionSwitchMask is null)
+            {
+                return;
+            }
+
+            _sectionSwitchMask.Visible = false;
+            _sectionSwitchMask.SendToBack();
+        }
+
+        private void QueueSectionLayoutPass(Control activeSection, bool hideSwitchMask)
+        {
+            if (!IsHandleCreated)
+            {
+                if (hideSwitchMask)
+                {
+                    HideSectionSwitchMask();
+                }
+
+                return;
+            }
+
+            BeginInvoke(new MethodInvoker(() =>
+            {
+                if (IsDisposed || !activeSection.Visible)
+                {
+                    if (hideSwitchMask)
+                    {
+                        HideSectionSwitchMask();
+                    }
+
+                    return;
+                }
+
+                activeSection.PerformLayout();
+                InvalidateControlTree(activeSection);
+                activeSection.Update();
+                _mainArea?.Invalidate(true);
+                _mainArea?.Update();
+                if (hideSwitchMask)
+                {
+                    HideSectionSwitchMask();
+                }
+            }));
         }
 
         private void UpdateNavigationSelection(int index)

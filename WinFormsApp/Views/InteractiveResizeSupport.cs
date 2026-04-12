@@ -132,7 +132,9 @@ internal sealed class InteractiveResizeFreezeController : IDisposable
                 return;
             }
 
-            e.Graphics.DrawImageUnscaled(_snapshot, Point.Empty);
+            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
+            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            e.Graphics.DrawImage(_snapshot, ClientRectangle);
         }
 
         protected override void Dispose(bool disposing)
