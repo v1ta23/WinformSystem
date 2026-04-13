@@ -34,6 +34,7 @@ namespace WinFormsApp.Views
         private const int InspectionSectionIndex = 3;
         private const int AnalyticsSectionIndex = 4;
         private const int DataInsightSectionIndex = 5;
+        private const int CommunicationDemoSectionIndex = 6;
         private const int WmEnterSizeMove = 0x0231;
         private const int WmSizing = 0x0214;
         private const int WmExitSizeMove = 0x0232;
@@ -45,6 +46,7 @@ namespace WinFormsApp.Views
         private readonly InspectionPageControl _inspectionPage;
         private readonly InspectionAnalyticsControl _analyticsPage;
         private readonly DataInsightPageControl _dataInsightPage;
+        private readonly CommunicationDemoPageControl _communicationDemoPage;
         private readonly string _account;
         private readonly ContextMenuStrip _accountMenu;
 
@@ -421,6 +423,10 @@ namespace WinFormsApp.Views
             _dataInsightPage.DataChanged += OnInspectionDataChanged;
             _dataInsightPage.ViewImportedRequested += OnDataInsightViewImportedRequested;
             _dataInsightPage.ViewPendingRequested += OnDataInsightViewPendingRequested;
+            _communicationDemoPage = new CommunicationDemoPageControl
+            {
+                Visible = false
+            };
 
             // 基础设置
             this.Text = string.Empty;
@@ -676,11 +682,13 @@ namespace WinFormsApp.Views
             _inspectionPage.Dock = DockStyle.Fill;
             _analyticsPage.Dock = DockStyle.Fill;
             _dataInsightPage.Dock = DockStyle.Fill;
+            _communicationDemoPage.Dock = DockStyle.Fill;
             mainArea.Controls.Add(_monitorPage);
             mainArea.Controls.Add(_alarmPage);
             mainArea.Controls.Add(_inspectionPage);
             mainArea.Controls.Add(_analyticsPage);
             mainArea.Controls.Add(_dataInsightPage);
+            mainArea.Controls.Add(_communicationDemoPage);
             mainArea.Controls.Add(homeView);
             _sectionSwitchMask = new BufferedPanel
             {
@@ -1017,6 +1025,7 @@ namespace WinFormsApp.Views
             _inspectionPage?.ApplyTheme();
             _analyticsPage?.ApplyTheme();
             _dataInsightPage?.ApplyTheme();
+            _communicationDemoPage?.ApplyTheme();
             InvalidateControlTree(this);
         }
 
@@ -1107,6 +1116,7 @@ namespace WinFormsApp.Views
             var showInspection = index == InspectionSectionIndex;
             var showAnalytics = index == AnalyticsSectionIndex;
             var showDataInsight = index == DataInsightSectionIndex;
+            var showCommunicationDemo = index == CommunicationDemoSectionIndex;
             var previousResizeAware = GetVisibleInteractiveResizeAware();
 
             if (!showHome)
@@ -1177,6 +1187,7 @@ namespace WinFormsApp.Views
             _inspectionPage.Visible = false;
             _analyticsPage.Visible = false;
             _dataInsightPage.Visible = false;
+            _communicationDemoPage.Visible = false;
 
             Control? activeSection = showHome
                 ? _homeView
@@ -1190,7 +1201,9 @@ namespace WinFormsApp.Views
                                 ? _analyticsPage
                                 : showDataInsight
                                     ? _dataInsightPage
-                                    : _homeView;
+                                    : showCommunicationDemo
+                                        ? _communicationDemoPage
+                                        : _homeView;
 
             if (activeSection is not null)
             {
@@ -1615,9 +1628,10 @@ namespace WinFormsApp.Views
                 SidebarGlyph.Warning,
                 SidebarGlyph.Page,
                 SidebarGlyph.Chart,
-                SidebarGlyph.Import
+                SidebarGlyph.Import,
+                SidebarGlyph.Notification
             };
-            tips = new[] { "首页", "设备监控", "报警中心", "巡检管理", "统计分析", "数据导入" };
+            tips = new[] { "首页", "设备监控", "报警中心", "巡检管理", "统计分析", "数据导入", "通信 Demo" };
 
             for (int i = 0; i < glyphs.Length; i++)
             {
