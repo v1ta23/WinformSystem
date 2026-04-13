@@ -302,7 +302,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
             Dock = DockStyle.Top,
             ForeColor = AccentBlue,
             Margin = new Padding(0, 4, 0, 0),
-            Text = "录入后列表和图表会即时刷新。"
+            Text = "保存后列表和图表将自动刷新。"
         };
 
         _filterKeywordTextBox = CreateTextBox();
@@ -648,7 +648,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
             Dock = DockStyle.Top,
             ForeColor = TextMutedColor,
             Padding = new Padding(0, 6, 0, 12),
-            Text = "先在录入窗体填好产线、设备、点检项目和点检人，再点“保存为模板”。这里主要用于查看和删除模板。"
+            Text = "模板用于复用产线、设备、点检项目和默认点检人，可在此查看或删除。"
         };
 
         var grid = new BufferedDataGridView
@@ -700,7 +700,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         {
             if (grid.CurrentRow?.DataBoundItem is not InspectionTemplateViewModel template)
             {
-                MessageBox.Show(window, "请先选中要删除的模板。", "删除模板", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(window, "请选择要删除的模板。", "删除模板", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -797,7 +797,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         {
             if (string.IsNullOrWhiteSpace(inputBox.Text))
             {
-                MessageBox.Show(window, "请先填写说明。", title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(window, "请填写说明。", title, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -1768,7 +1768,7 @@ internal sealed partial class InspectionPageControl : UserControl, IInteractiveR
         _entryCheckedAtPicker.Value = DateTime.Now;
         _entryRemarkTextBox.Clear();
         _entryFeedbackLabel.ForeColor = AccentBlue;
-        _entryFeedbackLabel.Text = "录入后列表和图表会即时刷新。";
+        _entryFeedbackLabel.Text = "保存后列表和图表将自动刷新。";
     }
 
     public void ApplyTheme()

@@ -5,6 +5,7 @@ obj/
 # IDE
 .idea/
 .vs/
+.codex/
 *.user
 *.sln.cache
 *.suo

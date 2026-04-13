@@ -181,13 +181,13 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
 
         _summaryLineHintRow.ValueText = highRiskLine?.LineName ?? "暂无重点产线";
         _summaryLineHintRow.NoteText = highRiskLine is null
-            ? "先看整体趋势和最近关注项。"
+            ? "关注整体趋势和最近关注项。"
             : $"异常 {highRiskLine.AbnormalCount} 条 / 预警 {highRiskLine.WarningCount} 条。";
 
         _summaryActionHintRow.ValueText = BuildActionTitle(pendingRows.Count, highRiskLine);
         _summaryActionHintRow.NoteText = pendingRows.Count > 0
-            ? "建议先去报警中心或巡检页处理。"
-            : "当前更适合复盘趋势和产线稳定性。";
+            ? "请前往报警中心或巡检页处理。"
+            : "可复盘趋势和产线稳定性。";
 
         _lineSummaryGrid.DataSource = _lineRows.ToList();
         _issueGrid.DataSource = _attentionRows.ToList();
@@ -222,7 +222,7 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
     {
         return PageChrome.CreatePageHeader(
             "统计分析",
-            "把关键判断、趋势和关注项放稳，不再用花哨结构挤内容。",
+            "汇总关键判断、趋势变化和最近关注项。",
             _generatedAtLabel,
             refreshButton);
     }
@@ -274,13 +274,13 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
 
         layout.Controls.Add(PageChrome.CreateSectionShell(
             "产线汇总",
-            "按风险优先级排，先看最需要处理的产线。",
+            "按风险优先级排序。",
             out _lineSubtitleLabel,
             _lineSummaryGrid,
             new Padding(0, 0, 12, 0)), 0, 0);
         layout.Controls.Add(PageChrome.CreateSectionShell(
             "最近关注项",
-            "只放最近需要立刻看到的记录。",
+            "展示最近需要关注的记录。",
             out _issueSubtitleLabel,
             _issueGrid,
             Padding.Empty), 1, 0);
@@ -310,9 +310,9 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
         summaryLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36F));
         summaryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        var titleLabel = PageChrome.CreateTextLabel("AI 摘要", 11F, FontStyle.Bold, TextPrimaryColor, new Padding(0, 0, 0, 6));
+        var titleLabel = PageChrome.CreateTextLabel("智能摘要", 11F, FontStyle.Bold, TextPrimaryColor, new Padding(0, 0, 0, 6));
         _summarySubtitleLabel = PageChrome.CreateTextLabel(
-            "默认先给一句结论，再告诉你下一步看哪里。",
+            "汇总当前风险结论和处理方向。",
             8.8F,
             FontStyle.Regular,
             TextMutedColor,
@@ -909,12 +909,12 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
 
         if (pendingCount > 0)
         {
-            return "结论：当前有待闭环问题，先收干净。";
+            return "结论：当前有待闭环问题，请优先闭环。";
         }
 
         if (_currentDashboard.WarningCount > 0)
         {
-            return "结论：当前以预警为主，先复核重点设备。";
+            return "结论：当前以预警为主，请复核重点设备。";
         }
 
         return "结论：当前巡检状态平稳，按节奏复盘。";
@@ -929,15 +929,15 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
     {
         var overview = $"本次共 {_currentDashboard.TotalCount} 条记录，合格率 {_currentDashboard.PassRateText}。正常 {_currentDashboard.NormalCount} / 预警 {_currentDashboard.WarningCount} / 异常 {_currentDashboard.AbnormalCount}。";
         var focus = _lineRows.Count == 0
-            ? "当前还没有产线统计结果，先补足巡检数据。"
+            ? "暂无产线统计结果，请补充巡检数据。"
             : highRiskLine is null
-                ? $"当前覆盖 {_lineRows.Count} 条产线，涉及 {affectedDeviceCount} 台问题设备，暂时没有单一产线明显压过其他产线。"
+                ? $"当前覆盖 {_lineRows.Count} 条产线，涉及 {affectedDeviceCount} 台问题设备，暂无单一产线风险明显突出。"
                 : $"当前覆盖 {_lineRows.Count} 条产线，涉及 {affectedDeviceCount} 台问题设备，优先关注 {highRiskLine.LineName}。";
         var action = pendingCount > 0
-            ? $"当前还有 {pendingCount} 条待闭环问题，建议先处理异常，再回头确认预警。"
+            ? $"当前还有 {pendingCount} 条待闭环问题，请优先处理异常，再确认预警。"
             : _attentionRows.Count > 0
-                ? "当前没有待闭环问题，但最近仍有需要复核的记录，先看最近关注项。"
-                : "当前没有待闭环问题，下一步更适合看趋势是否持续稳定。";
+                ? "当前没有待闭环问题，但最近仍有需要复核的记录，请查看最近关注项。"
+                : "当前没有待闭环问题，可继续观察趋势是否稳定。";
 
         return string.Join(Environment.NewLine, [$"{overview} {focus}", action]);
     }
@@ -966,15 +966,15 @@ internal sealed class InspectionAnalyticsControl : UserControl, IInteractiveResi
     {
         if (pendingCount > 0)
         {
-            return highRiskLine is null ? "先去闭环" : $"先看 {highRiskLine.LineName}";
+            return highRiskLine is null ? "待闭环处理" : $"关注 {highRiskLine.LineName}";
         }
 
         if (_attentionRows.Count > 0)
         {
-            return "先复核记录";
+            return "复核记录";
         }
 
-        return "看趋势复盘";
+        return "趋势复盘";
     }
 
     private static IReadOnlyList<LineSummaryRow> BuildLineRows(IReadOnlyList<InspectionRecordViewModel> records)

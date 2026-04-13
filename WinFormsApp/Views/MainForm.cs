@@ -423,7 +423,6 @@ namespace WinFormsApp.Views
             _dataInsightPage.ViewPendingRequested += OnDataInsightViewPendingRequested;
 
             // 基础设置
-            this.Text = "Glass Dashboard · 毛玻璃仪表板";
             this.Text = string.Empty;
             this.Size = new Size(1440, 900);
             this.MinimumSize = new Size(1180, 720);
@@ -788,7 +787,7 @@ namespace WinFormsApp.Views
             if (_dashboard.Activities.Count == 0)
             {
                 activityList.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-                activityList.Controls.Add(PageChrome.CreateEmptyStateLabel("当前还没有最近活动。"), 0, 0);
+                activityList.Controls.Add(PageChrome.CreateEmptyStateLabel("暂无最近活动。"), 0, 0);
             }
             else
             {
@@ -827,7 +826,7 @@ namespace WinFormsApp.Views
             }
 
             layout.Controls.Add(PageChrome.CreateSectionShell("最近活动", "按时间倒序，保留最新的巡检动态。", out _, activityList, new Padding(0, 0, 12, 0)), 0, 0);
-            layout.Controls.Add(PageChrome.CreateSectionShell("快捷操作", "直接跳到最常用的处理动作。", out _, actionList), 1, 0);
+            layout.Controls.Add(PageChrome.CreateSectionShell("快捷操作", "进入常用处理入口。", out _, actionList), 1, 0);
             return layout;
         }
 
@@ -1578,11 +1577,6 @@ namespace WinFormsApp.Views
                 using var borderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1f);
                 g.DrawPath(borderPen, tilePath);
 
-                var innerRect = Rectangle.Inflate(tileRect, -6, -6);
-                using var innerPath = CreateRoundRectPath(innerRect, 12);
-                using var innerPen = new Pen(Color.FromArgb(28, 255, 255, 255), 1f);
-                g.DrawPath(innerPen, innerPath);
-
                 DrawSidebarGlyph(
                     g,
                     new Rectangle(0, 0, avatarSize, avatarSize),
@@ -1918,7 +1912,6 @@ namespace WinFormsApp.Views
                         iconBgRect.X + (iconBgRect.Width - iconTextSize.Width) / 2,
                         iconBgRect.Y + (iconBgRect.Height - iconTextSize.Height) / 2F - 1F);
 
-                    // 数值与说明按固定文本区域绘制，避免中文字体高度变化时互相重叠
                     var contentWidth = rect.Width - 40;
                     var valueFont = SelectSingleLineFont(cardData[i].Value, CardValueFonts, contentWidth);
                     var labelFont = SelectSingleLineFont(cardData[i].Title, CardLabelFonts, contentWidth);

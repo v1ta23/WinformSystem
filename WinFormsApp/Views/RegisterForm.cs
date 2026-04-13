@@ -199,12 +199,12 @@ internal sealed class RegisterForm : Form
 
         var top = 0;
         panel.Controls.Add(CreateLabel("REGISTER", new Font("Segoe UI", 10F, FontStyle.Bold), AccentColor, ref top, 14));
-        panel.Controls.Add(CreateWrappedLabel("创建一个能马上登录的新账号", new Font("Microsoft YaHei UI", 20F, FontStyle.Bold), TextPrimary, 220, ref top, 12));
-        panel.Controls.Add(CreateWrappedLabel("把三项填好，点一下主按钮就能完成注册。", TextSecondary, 220, ref top, 28));
+        panel.Controls.Add(CreateWrappedLabel("创建新的登录账号", new Font("Microsoft YaHei UI", 20F, FontStyle.Bold), TextPrimary, 220, ref top, 12));
+        panel.Controls.Add(CreateWrappedLabel("填写账号、密码和确认密码后即可提交。", TextSecondary, 220, ref top, 28));
 
-        panel.Controls.Add(CreateFeatureItem("账号长度", "4 到 9 位，简短好记就行。", ref top));
-        panel.Controls.Add(CreateFeatureItem("密码长度", "6 到 9 位，两次输入必须一样。", ref top));
-        panel.Controls.Add(CreateFeatureItem("完成后", "注册成功会直接提示你回去登录。", ref top));
+        panel.Controls.Add(CreateFeatureItem("账号长度", "4 到 9 位，保持简洁。", ref top));
+        panel.Controls.Add(CreateFeatureItem("密码长度", "6 到 9 位，两次输入需一致。", ref top));
+        panel.Controls.Add(CreateFeatureItem("完成后", "注册成功后返回登录。", ref top));
 
         var footer = new Label
         {
@@ -213,7 +213,7 @@ internal sealed class RegisterForm : Form
             Font = new Font("Microsoft YaHei UI", 9F),
             ForeColor = TextMuted,
             Location = new Point(0, top + 16),
-            Text = "别担心，主按钮就在右边正中间。"
+            Text = "提交后系统将返回登录流程。"
         };
         panel.Controls.Add(footer);
 
@@ -238,7 +238,7 @@ internal sealed class RegisterForm : Form
         const int contentWidth = 452;
         var top = 0;
         content.Controls.Add(CreateLabel("填写注册信息", new Font("Microsoft YaHei UI", 18F, FontStyle.Bold), TextPrimary, ref top, 8));
-        content.Controls.Add(CreateWrappedLabel("账号、密码、确认密码都在下面，回车也能直接注册。", TextSecondary, contentWidth, ref top, 18));
+        content.Controls.Add(CreateWrappedLabel("填写以下信息，可按 Enter 提交注册。", TextSecondary, contentWidth, ref top, 18));
 
         content.Controls.Add(CreateFieldLabel("账号", ref top));
         content.Controls.Add(CreateInputHost(_accountTextBox, contentWidth, ref top));
@@ -251,7 +251,7 @@ internal sealed class RegisterForm : Form
 
         content.Controls.Add(CreateOptionsPanel(contentWidth, ref top));
         content.Controls.Add(CreateButtonsPanel(contentWidth, ref top));
-        content.Controls.Add(CreateWrappedLabel("如果已经有账号，点取消回到登录就行。", TextMuted, contentWidth, ref top, 0));
+        content.Controls.Add(CreateWrappedLabel("已有账号可返回登录。", TextMuted, contentWidth, ref top, 0));
 
         return panel;
     }
@@ -318,7 +318,7 @@ internal sealed class RegisterForm : Form
             BackColor = Color.Transparent,
             Font = new Font("Microsoft YaHei UI", 9F),
             ForeColor = TextMuted,
-            Text = "按 Enter 直接注册"
+            Text = "Enter 提交"
         };
         hintLabel.Location = new Point(width - hintLabel.GetPreferredSize(Size.Empty).Width, 4);
         panel.Controls.Add(hintLabel);

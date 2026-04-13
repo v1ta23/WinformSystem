@@ -139,7 +139,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     {
         return PageChrome.CreatePageHeader(
             "数据导入",
-            "这个页只负责导入，先校验再导入，后续处理回巡检页继续做。",
+            "导入前完成结构校验，导入后可在巡检记录中继续处理。",
             _generatedAtLabel,
             _selectFileButton,
             _importButton,
@@ -166,7 +166,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
         layout.Controls.Add(PageChrome.CreateSectionShell(
             "数据预览",
-            "导入前先看文件结构、行数和空值。",
+            "查看文件结构、行数和空值。",
             out _previewSubtitleLabel,
             _previewGrid,
             new Padding(0, 0, 12, 12)), 0, 0);
@@ -180,7 +180,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     {
         return PageChrome.CreateSectionShell(
             "校验结果",
-            "先看阻断问题和提醒，再决定要不要导入。",
+            "查看阻断问题和导入提醒。",
             out _validationSubtitleLabel,
             CreateTextBlockShell(_validationBlock),
             new Padding(0, 0, 0, 12));
@@ -278,7 +278,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
         return PageChrome.CreateSectionShell(
             "导入状态",
-            "把当前文件、校验结果和导入状态收成四条就够了。",
+            "汇总当前文件、校验结果和导入状态。",
             out _statusSubtitleLabel,
             statusLayout,
             new Padding(0, 0, 12, 0));
@@ -288,7 +288,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     {
         return PageChrome.CreateSectionShell(
             "下一步",
-            "这里只告诉你接下来该点什么，不堆别的功能。",
+            "显示当前导入流程的下一步操作。",
             out _nextStepSubtitleLabel,
             CreateTextBlockShell(_nextStepBlock),
             Padding.Empty);
@@ -528,7 +528,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         _currentFilePath = null;
         _previewGrid.DataSource = null;
         _previewGrid.Columns.Clear();
-        _generatedAtLabel.Text = "还没有选择导入文件";
+        _generatedAtLabel.Text = "尚未选择导入文件";
         RefreshDisplayState();
     }
 
@@ -545,13 +545,13 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
     {
         if (_currentPreview is null)
         {
-            _previewSubtitleLabel.Text = "导入前先预览数据。";
+            _previewSubtitleLabel.Text = "请选择 CSV 文件以预览数据。";
             return;
         }
 
         if (_currentPreview.RowCount == 0)
         {
-            _previewSubtitleLabel.Text = "文件只有表头，还没有数据行。";
+            _previewSubtitleLabel.Text = "文件仅包含表头，暂无数据行。";
             return;
         }
 
@@ -580,15 +580,15 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
             _statusStateRow.ValueText = "已导入";
             _statusStateRow.NoteText = _lastImportResult.PendingCount > 0
-                ? "下一步建议查看待闭环。"
-                : "下一步建议查看本批记录。";
+                ? "查看待闭环记录。"
+                : "查看本批记录。";
             return;
         }
 
         if (_currentPreview is not null)
         {
             _statusSubtitleLabel.Text = _currentPreview.CanImport
-                ? "校验通过，可以直接导入。"
+                ? "校验通过，可导入。"
                 : $"当前文件还有 {_currentPreview.ValidationErrors.Count} 个阻断问题。";
 
             _statusFileRow.ValueText = _currentPreview.FileName;
@@ -605,29 +605,29 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
             _statusStateRow.ValueText = _currentPreview.CanImport ? "待导入" : "不可导入";
             _statusStateRow.NoteText = _currentPreview.CanImport
-                ? "下一步点“确认导入”。"
-                : "先修正右上的阻断问题。";
+                ? "选择“确认导入”。"
+                : "请修正阻断问题。";
             return;
         }
 
-        _statusSubtitleLabel.Text = "还没有文件。";
+        _statusSubtitleLabel.Text = "尚未选择文件。";
         _statusFileRow.ValueText = "--";
-        _statusFileRow.NoteText = "先点上面的“选择 CSV 文件”。";
+        _statusFileRow.NoteText = "请选择 CSV 文件。";
         _statusValidRow.ValueText = "0";
-        _statusValidRow.NoteText = "导入后显示有效记录数。";
+        _statusValidRow.NoteText = "有效记录将在校验后显示。";
         _statusRiskRow.ValueText = "0";
-        _statusRiskRow.NoteText = "导入后显示预警和异常。";
+        _statusRiskRow.NoteText = "预警和异常将在校验后显示。";
         _statusStateRow.ValueText = "未开始";
-        _statusStateRow.NoteText = "先选文件，再决定是否导入。";
+        _statusStateRow.NoteText = "请选择文件并完成校验。";
     }
 
     private void UpdateValidationSummary()
     {
         if (_currentPreview is null)
         {
-            _validationSubtitleLabel.Text = "先选文件，右边会显示校验结果。";
+            _validationSubtitleLabel.Text = "选择文件后显示校验结果。";
             _validationBlock.Text =
-                "固定模板要求：\r\n\r\n" +
+                "CSV 模板要求：\r\n\r\n" +
                 "1. 必填列：产线、设备名称、点检项目、状态、点检时间。\r\n" +
                 "2. 可选列：点检人、测量值、备注。\r\n" +
                 "3. 状态只支持：正常 / 预警 / 异常。";
@@ -645,15 +645,15 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
                 $"导入记录：{_lastImportResult.ImportedCount} 条\r\n" +
                 $"状态分布：正常 {_lastImportResult.NormalCount} / 预警 {_lastImportResult.WarningCount} / 异常 {_lastImportResult.AbnormalCount}\r\n" +
                 (_lastImportResult.PendingCount > 0
-                    ? "校验结果已经通过，后续重点转到待闭环。"
-                    : "校验结果已经通过，后续可以回巡检页看本批记录。");
+                    ? "校验已通过，重点关注待闭环记录。"
+                    : "校验已通过，可在巡检页查看本批记录。");
             return;
         }
 
         var lines = new List<string>();
         if (_currentPreview.ValidationErrors.Count > 0)
         {
-            _validationSubtitleLabel.Text = $"有 {_currentPreview.ValidationErrors.Count} 个阻断问题，先修正。";
+            _validationSubtitleLabel.Text = $"存在 {_currentPreview.ValidationErrors.Count} 个阻断问题。";
             lines.Add("阻断问题：");
             foreach (var error in _currentPreview.ValidationErrors)
             {
@@ -663,8 +663,8 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         else
         {
             _validationSubtitleLabel.Text = _currentPreview.Warnings.Count > 0
-                ? $"没有阻断问题，另有 {_currentPreview.Warnings.Count} 条提醒。"
-                : "校验通过，可以直接导入。";
+                ? $"无阻断问题，另有 {_currentPreview.Warnings.Count} 条提醒。"
+                : "校验通过，可导入。";
             lines.Add("阻断问题：无");
         }
 
@@ -690,26 +690,26 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         if (_lastImportResult is not null && _currentPreview is not null)
         {
             _nextStepSubtitleLabel.Text = _lastImportResult.PendingCount > 0
-                ? "导入完成，下一步先去处理待闭环。"
-                : "导入完成，下一步去巡检页看本批记录。";
+                ? "导入完成，请处理待闭环记录。"
+                : "导入完成，可在巡检页查看本批记录。";
             _nextStepBlock.Text = BuildImportAnalysis(_lastImportResult, _currentPreview);
             return;
         }
 
         if (_currentPreview is null)
         {
-            _nextStepSubtitleLabel.Text = "先选文件，再决定是否导入。";
+            _nextStepSubtitleLabel.Text = "请选择文件并完成校验。";
             _nextStepBlock.Text =
-                "这个页只做导入：\r\n\r\n" +
-                "1. 先选 CSV 文件。\r\n" +
-                "2. 看预览和校验结果。\r\n" +
-                "3. 通过后确认导入，导入完成再回巡检页继续处理。";
+                "导入流程：\r\n\r\n" +
+                "1. 选择 CSV 文件。\r\n" +
+                "2. 查看预览和校验结果。\r\n" +
+                "3. 校验通过后确认导入。";
             return;
         }
 
         _nextStepSubtitleLabel.Text = _currentPreview.CanImport
-            ? "校验通过，下一步点“确认导入”。"
-            : "当前文件还不能直接导入。";
+            ? "校验通过，可确认导入。"
+            : "当前文件不可导入。";
         _nextStepBlock.Text = BuildPreviewAnalysis(_currentPreview);
     }
 
@@ -729,11 +729,11 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         var lines = new List<string>();
         if (preview.CanImport)
         {
-            lines.Add("当前文件可以导入。下一步直接点“确认导入”。");
+            lines.Add("当前文件可以导入。请选择“确认导入”。");
         }
         else
         {
-            lines.Add("当前文件还不能导入。先按右上角校验结果修正 CSV。");
+            lines.Add("当前文件不可导入。请按校验结果修正 CSV。");
         }
 
         lines.Add($"有效记录 {preview.ValidEntryCount} 条，预警 {preview.WarningCount} 条，异常 {preview.AbnormalCount} 条。");
@@ -741,7 +741,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
         if (preview.ValidationErrors.Count > 0)
         {
-            lines.Add("需要先修正这些问题：");
+            lines.Add("需修正以下问题：");
             foreach (var error in preview.ValidationErrors.Take(5))
             {
                 lines.Add($"- {error}");
@@ -765,7 +765,7 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
         var lines = new List<string>
         {
             $"导入完成：{result.ImportedCount} 条记录已写入系统。",
-            $"本次批次：{result.BatchKeyword}。这个页到这里结束，后续处理去巡检页。",
+            $"本次批次：{result.BatchKeyword}。可在巡检页处理本批记录。",
             $"状态分布：正常 {result.NormalCount} / 预警 {result.WarningCount} / 异常 {result.AbnormalCount}。",
             $"模板同步：新增 {result.TemplateCreatedCount} 个，更新 {result.TemplateUpdatedCount} 个。",
             $"来源文件：{result.SourceFileName}。"
@@ -773,11 +773,11 @@ internal sealed class DataInsightPageControl : UserControl, IInteractiveResizeAw
 
         if (result.PendingCount > 0)
         {
-            lines.Add("这批数据里有待闭环项，建议直接点“查看待闭环”继续处理。");
+            lines.Add("本批数据存在待闭环项，请查看待闭环记录。");
         }
         else if (preview.ValidEntryCount > 0)
         {
-            lines.Add("这批数据没有新增待闭环项，可以直接回巡检页继续查询或导出。");
+            lines.Add("本批数据未新增待闭环项，可在巡检页查询或导出。");
         }
 
         return string.Join(Environment.NewLine + Environment.NewLine, lines);

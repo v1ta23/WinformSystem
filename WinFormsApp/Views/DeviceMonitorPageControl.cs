@@ -139,9 +139,9 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
         if (focusRow is null)
         {
             _issueDeviceValueLabel.Text = "--";
-            _issueDeviceNoteLabel.Text = "暂时没有设备数据";
+            _issueDeviceNoteLabel.Text = "暂无设备数据";
             _focusDeviceLabel.Text = "暂无重点设备";
-            _focusDetailLabel.Text = "等有巡检记录后，这里再显示需要优先处理的设备。";
+            _focusDetailLabel.Text = "暂无巡检记录。";
         }
         else
         {
@@ -149,7 +149,7 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
             _issueDeviceNoteLabel.Text = $"{focusRow.LineName} / {focusRow.AttentionLevel}";
             _focusDeviceLabel.Text = $"{focusRow.LineName} / {focusRow.DeviceName}";
             _focusDetailLabel.Text = focusRow.PendingCount > 0
-                ? $"当前有 {focusRow.PendingCount} 条待处理问题，建议先进入报警中心或巡检页。"
+                ? $"当前有 {focusRow.PendingCount} 条待处理问题，请优先处理。"
                 : $"最近巡检时间 {focusRow.LatestCheckedAt}，当前状态稳定。";
         }
 
@@ -191,7 +191,7 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
     {
         return PageChrome.CreatePageHeader(
             "设备监控",
-            "先把设备维度的工作面做出来，首页后面只抽摘要。",
+            "按设备维度汇总巡检状态和待处理问题。",
             _generatedAtLabel,
             refreshButton);
     }
@@ -214,7 +214,7 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
         }
 
         _deviceCountValueLabel = PageChrome.CreateValueLabel();
-        var deviceNoteLabel = PageChrome.CreateNoteLabel("当前有巡检数据的设备数");
+        var deviceNoteLabel = PageChrome.CreateNoteLabel("已有巡检记录的设备数");
 
         _issueDeviceValueLabel = PageChrome.CreateValueLabel(16F);
         _issueDeviceNoteLabel = PageChrome.CreateNoteLabel();
@@ -257,7 +257,7 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
 
         var devicePanel = PageChrome.CreateSectionShell(
             "设备列表",
-            "详细控制和更多参数后面继续往这个页面里加。",
+            "展示设备最近状态、关注级别和待处理数量。",
             out _,
             _deviceGrid,
             new Padding(0, 0, 12, 0));
@@ -296,13 +296,13 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
         focusContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         focusContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         focusContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        focusContent.Controls.Add(PageChrome.CreateNoteLabel("这里固定放最该先看的那台设备。", 8.8F, TextMutedColor), 0, 0);
+        focusContent.Controls.Add(PageChrome.CreateNoteLabel("当前优先关注设备", 8.8F, TextMutedColor), 0, 0);
         focusContent.Controls.Add(_focusDeviceLabel, 0, 1);
         focusContent.Controls.Add(_focusDetailLabel, 0, 2);
 
         var focusPanel = PageChrome.CreateSectionShell(
             "重点设备",
-            "先处理最该看的设备，首页以后只显示这条摘要。",
+            "展示当前最需要关注的设备。",
             out _,
             focusContent,
             new Padding(0, 0, 0, 12));
@@ -326,7 +326,7 @@ internal sealed class DeviceMonitorPageControl : UserControl, IInteractiveResize
 
         var attentionPanel = PageChrome.CreateSectionShell(
             "最近关注",
-            "只放最需要马上看见的几条。",
+            "展示最近需要关注的记录。",
             out _,
             attentionBody,
             Padding.Empty);

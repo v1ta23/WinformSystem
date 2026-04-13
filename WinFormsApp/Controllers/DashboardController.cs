@@ -47,8 +47,8 @@ internal sealed class DashboardController
 
         return new DashboardViewModel
         {
-            HeaderTitle = "巡检总览",
-            HeaderSubtitle = $"{account}，今天已完成 {todayRecords.Count} 条巡检，待闭环 {pendingRecords.Count} 条。",
+            HeaderTitle = "首页",
+            HeaderSubtitle = $"今日巡检 {todayRecords.Count} 条，待闭环 {pendingRecords.Count} 条。",
             Cards =
             [
                 new DashboardCardViewModel

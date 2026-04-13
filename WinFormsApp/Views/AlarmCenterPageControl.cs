@@ -137,7 +137,7 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
     {
         return PageChrome.CreatePageHeader(
             "报警中心",
-            "这里看完整告警列表和处理状态，首页后面只挑重点摘要。",
+            "展示告警清单、处理状态和闭环记录。",
             _generatedAtLabel,
             refreshButton,
             closeButton);
@@ -166,9 +166,9 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
         _closedValueLabel = PageChrome.CreateValueLabel();
 
         layout.Controls.Add(PageChrome.CreateMetricCard("待处理总数", DangerColor, _pendingValueLabel, PageChrome.CreateNoteLabel("未闭环的预警和异常")), 0, 0);
-        layout.Controls.Add(PageChrome.CreateMetricCard("异常", DangerColor, _abnormalValueLabel, PageChrome.CreateNoteLabel("优先级最高，建议先处理")), 1, 0);
+        layout.Controls.Add(PageChrome.CreateMetricCard("异常", DangerColor, _abnormalValueLabel, PageChrome.CreateNoteLabel("优先级最高")), 1, 0);
         layout.Controls.Add(PageChrome.CreateMetricCard("预警", WarningColor, _warningValueLabel, PageChrome.CreateNoteLabel("可安排巡检复核")), 2, 0);
-        layout.Controls.Add(PageChrome.CreateMetricCard("最近闭环", SuccessColor, _closedValueLabel, PageChrome.CreateNoteLabel("方便回看最近处理结果"), Padding.Empty), 3, 0);
+        layout.Controls.Add(PageChrome.CreateMetricCard("最近闭环", SuccessColor, _closedValueLabel, PageChrome.CreateNoteLabel("最近处理记录"), Padding.Empty), 3, 0);
         return layout;
     }
 
@@ -199,7 +199,7 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
 
         var pendingPanel = PageChrome.CreateSectionShell(
             "待处理告警",
-            "这里看完整清单，确认、闭环动作仍通过巡检流程完成。",
+            "展示未闭环告警清单，可双击记录提交闭环。",
             out _,
             _pendingGrid,
             new Padding(0, 0, 0, 12));
@@ -225,7 +225,7 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
 
         var historyPanel = PageChrome.CreateSectionShell(
             "最近闭环",
-            "只保留最近处理完的记录，方便回看。",
+            "展示最近已闭环记录。",
             out _,
             historyBody,
             Padding.Empty);
@@ -286,7 +286,7 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
         var row = GetSelectedPendingRow();
         if (row is null)
         {
-            MessageBox.Show(this, "请先选中要闭环的告警。", "告警闭环", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, "请选择要闭环的告警。", "告警闭环", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -383,7 +383,7 @@ internal sealed class AlarmCenterPageControl : UserControl, IInteractiveResizeAw
         {
             if (string.IsNullOrWhiteSpace(inputBox.Text))
             {
-                MessageBox.Show(window, "请先填写处理说明。", title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(window, "请填写处理说明。", title, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
