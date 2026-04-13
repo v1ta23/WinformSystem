@@ -4,9 +4,14 @@ obj/
 
 # IDE
 .idea/
+.vs/
+.codex/
 *.user
 *.sln.cache
 *.suo
 
 # User-specific
 *.csproj.user
+
+# Local verification artifacts
+artifacts/
