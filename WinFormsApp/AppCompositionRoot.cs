@@ -38,7 +38,7 @@ internal sealed class AppCompositionRoot
             "managed-devices.json");
         var inspectionRecordRepository = new SqlInspectionRecordRepository(sqlOptions);
         var inspectionTemplateRepository = new SqlInspectionTemplateRepository(sqlOptions);
-        var managedDeviceRepository = new JsonManagedDeviceRepository(managedDevicePath);
+        var managedDeviceRepository = new SqlManagedDeviceRepository(sqlOptions);
 
         MigrateJsonRecordsIfNeeded(
             inspectionRecordRepository,
@@ -46,6 +46,9 @@ internal sealed class AppCompositionRoot
         MigrateJsonTemplatesIfNeeded(
             inspectionTemplateRepository,
             new JsonInspectionTemplateRepository(inspectionTemplatePath));
+        MigrateJsonDevicesIfNeeded(
+            managedDeviceRepository,
+            new JsonManagedDeviceRepository(managedDevicePath));
 
         _authenticationService = new AuthenticationService(userRepository, rememberMeRepository);
         _inspectionRecordService = new InspectionRecordService(
@@ -114,5 +117,23 @@ internal sealed class AppCompositionRoot
         }
 
         targetRepository.SaveAll(legacyTemplates);
+    }
+
+    private static void MigrateJsonDevicesIfNeeded(
+        IManagedDeviceRepository targetRepository,
+        IManagedDeviceRepository sourceRepository)
+    {
+        if (targetRepository.GetAll().Count > 0)
+        {
+            return;
+        }
+
+        var legacyDevices = sourceRepository.GetAll();
+        if (legacyDevices.Count == 0)
+        {
+            return;
+        }
+
+        targetRepository.SaveAll(legacyDevices);
     }
 }

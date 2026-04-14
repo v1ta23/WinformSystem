@@ -62,6 +62,23 @@ internal static class SqlServerSchemaInitializer
                                    DefaultRemark NVARCHAR(MAX) NOT NULL
                                );
                            END;
+
+                           IF OBJECT_ID(N'dbo.ManagedDevices', N'U') IS NULL
+                           BEGIN
+                               CREATE TABLE dbo.ManagedDevices
+                               (
+                                   Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                                   LineName NVARCHAR(100) NOT NULL,
+                                   DeviceName NVARCHAR(100) NOT NULL,
+                                   DeviceCode NVARCHAR(100) NOT NULL,
+                                   Location NVARCHAR(200) NOT NULL,
+                                   Owner NVARCHAR(100) NOT NULL,
+                                   CommunicationAddress NVARCHAR(300) NOT NULL,
+                                   Status INT NOT NULL,
+                                   UpdatedAt DATETIME2 NOT NULL,
+                                   Remark NVARCHAR(MAX) NOT NULL
+                               );
+                           END;
                            """;
 
         using var command = new SqlCommand(sql, connection);
