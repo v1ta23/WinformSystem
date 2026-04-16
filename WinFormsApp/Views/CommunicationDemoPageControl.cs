@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 
@@ -7,8 +8,20 @@ namespace WinFormsApp.Views;
 
 internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveResizeAware
 {
+    private const string ConnectionHistoryFileName = "communication-devices.txt";
+    private const int MaxRecentDevices = 8;
+
+    private static readonly TestCommand[] CommonCommands =
+    [
+        new("PING 测试连接", "PING", "用途：确认设备能不能正常回应。"),
+        new("READ_STATUS 读取状态", "READ_STATUS", "用途：让设备返回当前运行状态。"),
+        new("READ_ALARM 读取报警", "READ_ALARM", "用途：查看设备现在有没有报警。"),
+        new("RESET_FAULT 清除故障", "RESET_FAULT", "用途：请求设备清除可恢复故障。")
+    ];
+
     private readonly BindingList<DeviceStatusRow> _deviceRows = new();
     private readonly BindingList<PacketLogRow> _packetRows = new();
+    private readonly List<string> _recentDevices;
     private readonly Control _layoutRoot;
     private readonly InteractiveResizeFreezeController _interactiveResizeController;
     private readonly Label _infoLabel;
@@ -21,6 +34,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
     private readonly Label _latencyNoteLabel;
     private readonly Label _alarmNoteLabel;
     private readonly Button _connectButton;
+    private readonly ComboBox _commandComboBox;
     private readonly TextBox _sendTextBox;
     private readonly TextBox _responseTextBox;
     private readonly TopologyCanvas _topologyCanvas;
@@ -45,6 +59,9 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         BackColor = PageChrome.PageBackground;
         Font = new Font("Microsoft YaHei UI", 9F);
 
+        _recentDevices = LoadRecentDevices();
+        UseFirstRecentDevice();
+
         _infoLabel = PageChrome.CreateInfoLabel("点击 1 打开连接窗口，连接后发送测试内容并读取真实回复。");
         _connectionValueLabel = PageChrome.CreateValueLabel(18F, "未连接");
         _onlineValueLabel = PageChrome.CreateValueLabel(18F, "0/1");
@@ -60,6 +77,11 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         _responseTextBox.Multiline = true;
         _responseTextBox.ReadOnly = true;
         _responseTextBox.ScrollBars = ScrollBars.Vertical;
+
+        _commandComboBox = CreateCommandComboBox();
+        _commandComboBox.Items.AddRange(CommonCommands);
+        _commandComboBox.SelectedIndexChanged += (_, _) => ApplySelectedCommand();
+        _commandComboBox.SelectedIndex = 0;
 
         _connectButton = PageChrome.CreateActionButton("1 连接设备", PageChrome.AccentGreen, true);
         var sendButton = PageChrome.CreateActionButton("2 发送测试", PageChrome.AccentBlue, false);
@@ -207,8 +229,23 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+        var sendLine = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.Transparent,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        sendLine.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        sendLine.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210F));
+        sendLine.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        sendLine.Controls.Add(_sendTextBox, 0, 0);
+        sendLine.Controls.Add(_commandComboBox, 1, 0);
+
         body.Controls.Add(CreateFieldLabel("发送内容"), 0, 0);
-        body.Controls.Add(_sendTextBox, 1, 0);
+        body.Controls.Add(sendLine, 1, 0);
         body.Controls.Add(CreateFieldLabel("设备回复"), 0, 1);
         body.Controls.Add(_responseTextBox, 1, 1);
 
@@ -245,7 +282,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             Padding = Padding.Empty
         };
         leftSide.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        leftSide.RowStyles.Add(new RowStyle(SizeType.Absolute, 168F));
+        leftSide.RowStyles.Add(new RowStyle(SizeType.Absolute, 205F));
         leftSide.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         var topologyShell = PageChrome.CreateSectionShell(
@@ -425,6 +462,175 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         };
     }
 
+    private static ComboBox CreateCommandComboBox()
+    {
+        return new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            BackColor = PageChrome.InputBackground,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Microsoft YaHei UI", 9F),
+            ForeColor = PageChrome.TextPrimary,
+            Margin = new Padding(0, 0, 10, 8)
+        };
+    }
+
+    private void ApplySelectedCommand()
+    {
+        if (_commandComboBox.SelectedItem is not TestCommand command)
+        {
+            return;
+        }
+
+        _sendTextBox.Text = command.CommandText;
+        SetDeviceReply(command.Hint);
+    }
+
+    private void SetDeviceReply(string message, string? explanation = null)
+    {
+        _responseTextBox.Text = string.IsNullOrWhiteSpace(explanation)
+            ? message
+            : $"{message}{Environment.NewLine}{Environment.NewLine}说明：{explanation}";
+    }
+
+    private void UseFirstRecentDevice()
+    {
+        if (_recentDevices.Count == 0)
+        {
+            return;
+        }
+
+        if (TryParseEndpoint(_recentDevices[0], out var host, out var port))
+        {
+            _deviceHost = host;
+            _devicePort = port;
+        }
+    }
+
+    private static List<string> LoadRecentDevices()
+    {
+        var path = GetConnectionHistoryPath();
+        if (!File.Exists(path))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            return File.ReadAllLines(path)
+                .Select(line => line.Trim())
+                .Where(line => line.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxRecentDevices)
+                .ToList();
+        }
+        catch (IOException)
+        {
+            return new List<string>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new List<string>();
+        }
+    }
+
+    private void RememberCurrentDevice()
+    {
+        var endpoint = $"{_deviceHost}:{_devicePort}";
+        _recentDevices.RemoveAll(item => string.Equals(item, endpoint, StringComparison.OrdinalIgnoreCase));
+        _recentDevices.Insert(0, endpoint);
+
+        if (_recentDevices.Count > MaxRecentDevices)
+        {
+            _recentDevices.RemoveRange(MaxRecentDevices, _recentDevices.Count - MaxRecentDevices);
+        }
+
+        SaveRecentDevices(_recentDevices);
+    }
+
+    private static void SaveRecentDevices(IEnumerable<string> devices)
+    {
+        try
+        {
+            var path = GetConnectionHistoryPath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllLines(path, devices);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string GetConnectionHistoryPath()
+    {
+        return Path.Combine(Application.UserAppDataPath, ConnectionHistoryFileName);
+    }
+
+    private static bool TryParseEndpoint(string endpoint, out string host, out int port)
+    {
+        host = string.Empty;
+        port = 0;
+
+        var divider = endpoint.LastIndexOf(':');
+        if (divider <= 0 || divider == endpoint.Length - 1)
+        {
+            return false;
+        }
+
+        var parsedHost = endpoint[..divider].Trim();
+        if (parsedHost.Length == 0 || !int.TryParse(endpoint[(divider + 1)..].Trim(), out var parsedPort))
+        {
+            return false;
+        }
+
+        host = parsedHost;
+        port = parsedPort;
+        return true;
+    }
+
+    private static string ExplainResponse(string response)
+    {
+        var value = response.Trim();
+        if (value.Length == 0)
+        {
+            return "设备返回了空内容。连接可能通了，但这条指令没有拿到有效结果。";
+        }
+
+        if (value.StartsWith("ECHO:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "通信正常：设备收到了刚才发送的内容，并把内容回传了。";
+        }
+
+        if (value.StartsWith("OK", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("SUCCESS", StringComparison.OrdinalIgnoreCase))
+        {
+            return "通信正常：设备确认执行成功。";
+        }
+
+        if (value.StartsWith("ERR", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("FAIL", StringComparison.OrdinalIgnoreCase))
+        {
+            return "设备返回错误：指令可能不支持、格式不对，或设备当前不允许执行。";
+        }
+
+        if (value.Contains("ALARM", StringComparison.OrdinalIgnoreCase))
+        {
+            return "设备返回报警信息：需要查看设备状态或现场传感器。";
+        }
+
+        if (value.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return "设备提示超时：可能是设备忙、网络慢，或指令处理时间太长。";
+        }
+
+        return "已收到设备回复，但暂时没有匹配到已知规则。请对照设备协议文档看这段原始内容。";
+    }
+
     private static Color GetStateColor(string state)
     {
         return state switch
@@ -456,7 +662,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             return;
         }
 
-        using var dialog = new ConnectionDialog(_deviceHost, _devicePort);
+        using var dialog = new ConnectionDialog(_deviceHost, _devicePort, _recentDevices);
         if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
         {
             return;
@@ -470,7 +676,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
     private void ConnectToDevice()
     {
         _connectButton.Enabled = false;
-        _responseTextBox.Text = "正在连接...";
+        SetDeviceReply("正在连接...");
         try
         {
             var client = new TcpClient();
@@ -482,9 +688,10 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             _connectButton.Text = "断开连接";
             _lastDeviceIndex = 0;
             _lastFlowText = "已连接";
+            RememberCurrentDevice();
             UpdateDeviceRow("在线", "0 次", $"已连接 {_deviceHost}:{_devicePort}");
             AddPacket("系统", "控制端", $"已连接 {_deviceHost}:{_devicePort}。", "成功");
-            _responseTextBox.Text = "连接成功。请输入发送内容，然后点击 2 发送测试。";
+            SetDeviceReply("连接成功。请输入发送内容，然后点击 2 发送测试。", "连接已经打通。下一步选一条常用指令，发送后再接收设备回复。");
         }
         catch (Exception ex)
         {
@@ -493,7 +700,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             _lastFlowText = "连接失败";
             UpdateDeviceRow("离线", "0 次", "连接失败");
             AddPacket("故障", "控制端", $"连接失败：{ex.Message}", "故障");
-            _responseTextBox.Text = $"连接失败：{ex.Message}";
+            SetDeviceReply($"连接失败：{ex.Message}", "没有连上设备。先检查地址、端口、设备电源和防火墙。");
         }
         finally
         {
@@ -507,7 +714,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         if (!_connected || _tcpStream is null)
         {
             AddPacket("发送", "控制端", "请先连接设备，再发送测试内容。", "未发送");
-            _responseTextBox.Text = "请先连接设备。";
+            SetDeviceReply("请先连接设备。", "还没有连接设备，所以这条内容没有发出去。");
             return;
         }
 
@@ -515,7 +722,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         if (string.IsNullOrWhiteSpace(text))
         {
             AddPacket("发送", "控制端", "发送内容不能为空。", "未发送");
-            _responseTextBox.Text = "发送内容不能为空。";
+            SetDeviceReply("发送内容不能为空。", "先选择常用指令，或手动输入一条要发给设备的内容。");
             return;
         }
 
@@ -529,11 +736,12 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             _lastFlowText = "发送";
             UpdateDeviceRow("在线", $"{_messageCount} 次", "已发送测试内容");
             AddPacket("发送", "待测设备", $"控制端发送：{Shorten(text)}", "已发送");
+            SetDeviceReply("内容已经发出。现在按 3 接收回复，看设备怎么回答。");
         }
         catch (Exception ex)
         {
             AddPacket("故障", "待测设备", $"发送失败：{ex.Message}", "故障");
-            _responseTextBox.Text = $"发送失败：{ex.Message}";
+            SetDeviceReply($"发送失败：{ex.Message}", "发送时连接断了，通常是设备关闭、网络断开，或端口被重置。");
             DisconnectRealDevice("发送失败，连接已关闭。", addLog: false);
         }
         finally
@@ -547,7 +755,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         if (!_connected || _tcpStream is null)
         {
             AddPacket("接收", "控制端", "请先连接设备，再读取回复。", "未接收");
-            _responseTextBox.Text = "请先连接设备。";
+            SetDeviceReply("请先连接设备。", "还没有连接设备，所以读不到回复。");
             return;
         }
 
@@ -558,6 +766,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             if (count <= 0)
             {
                 DisconnectRealDevice("设备已关闭连接。");
+                SetDeviceReply("设备已关闭连接。", "设备主动断开了连接。需要重新连接后再测试。");
                 return;
             }
 
@@ -565,19 +774,19 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             _replyCount++;
             _lastDeviceIndex = 0;
             _lastFlowText = "接收";
-            _responseTextBox.Text = response;
+            SetDeviceReply($"原始回复：{response}", ExplainResponse(response));
             UpdateDeviceRow("在线", $"{Math.Max(_messageCount, _replyCount)} 次", "已收到真实回复");
             AddPacket("接收", "待测设备", $"真实回复：{Shorten(response)}", "已收到");
         }
         catch (IOException)
         {
             _lastFlowText = "超时";
-            _responseTextBox.Text = "3 秒内没有收到设备回复。";
+            SetDeviceReply("3 秒内没有收到设备回复。", "设备没有及时回答。可能没收到指令、正在忙，或这条指令不需要回复。");
             AddPacket("接收", "待测设备", "3 秒内没有收到设备回复。", "超时");
         }
         catch (Exception ex)
         {
-            _responseTextBox.Text = $"读取失败：{ex.Message}";
+            SetDeviceReply($"读取失败：{ex.Message}", "读取回复时连接异常，建议重新连接设备再测一次。");
             AddPacket("故障", "待测设备", $"读取失败：{ex.Message}", "故障");
             DisconnectRealDevice("读取失败，连接已关闭。", addLog: false);
         }
@@ -601,6 +810,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         device.LastPacket = DateTime.Now.ToString("HH:mm:ss");
         device.Detail = "压力超过安全范围";
         _alarmCount++;
+        SetDeviceReply("模拟故障：压力超过安全范围。", "这是手动模拟的故障，用来确认日志、状态和拓扑会不会变红。");
         AddPacket("故障", device.DeviceName, "设备故障：压力超过安全范围，请检查。", "故障");
         RefreshStatus();
     }
@@ -613,7 +823,9 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         _alarmCount = 0;
         _lastDeviceIndex = -1;
         _lastFlowText = "已清空";
-        _responseTextBox.Text = _connected ? "通信记录已清空，可以重新发送测试内容。" : "通信记录已清空。";
+        SetDeviceReply(
+            _connected ? "通信记录已清空，可以重新发送测试内容。" : "通信记录已清空。",
+            _connected ? "记录已清空，连接还在，可以继续测试。" : "记录已清空。先连接设备，再发送测试内容。");
 
         foreach (var device in _deviceRows)
         {
@@ -649,7 +861,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         _lastDeviceIndex = -1;
         _lastFlowText = "已断开";
         UpdateDeviceRow("离线", "0 次", "连接已断开");
-        _responseTextBox.Text = message;
+        SetDeviceReply(message, "连接已经断开。需要继续测试时，请重新连接设备。");
         if (addLog)
         {
             AddPacket("系统", "控制端", message, "成功");
@@ -741,6 +953,27 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         _topologyCanvas.Invalidate();
     }
 
+    private sealed class TestCommand
+    {
+        public TestCommand(string label, string commandText, string hint)
+        {
+            Label = label;
+            CommandText = commandText;
+            Hint = hint;
+        }
+
+        public string Label { get; }
+
+        public string CommandText { get; }
+
+        public string Hint { get; }
+
+        public override string ToString()
+        {
+            return Label;
+        }
+    }
+
     private sealed class DeviceStatusRow
     {
         public DeviceStatusRow(string deviceName, string linkState, string latency, string lastPacket, string detail)
@@ -795,15 +1028,16 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
 
     private sealed class ConnectionDialog : Form
     {
+        private readonly ComboBox _historyComboBox;
         private readonly TextBox _hostTextBox;
         private readonly TextBox _portTextBox;
 
-        public ConnectionDialog(string host, int port)
+        public ConnectionDialog(string host, int port, IReadOnlyList<string> recentDevices)
         {
             Text = "连接设备";
-            Size = new Size(420, 230);
-            MinimumSize = new Size(420, 230);
-            MaximumSize = new Size(520, 260);
+            ClientSize = new Size(560, 360);
+            MinimumSize = SizeFromClientSize(new Size(560, 360));
+            MaximumSize = SizeFromClientSize(new Size(720, 520));
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -811,19 +1045,23 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             BackColor = PageChrome.PageBackground;
             Font = new Font("Microsoft YaHei UI", 9F);
 
+            _historyComboBox = CreateDialogComboBox(recentDevices);
+            _historyComboBox.Name = "HistoryComboBox";
+            _historyComboBox.SelectedIndexChanged += (_, _) => ApplyHistorySelection();
             _hostTextBox = CreateDialogTextBox(host);
             _hostTextBox.Name = "HostTextBox";
             _portTextBox = CreateDialogTextBox(port.ToString());
             _portTextBox.Name = "PortTextBox";
 
-            var connectButton = PageChrome.CreateActionButton("连接", PageChrome.AccentGreen, true);
-            connectButton.AutoSize = false;
-            connectButton.Size = new Size(86, 36);
+            if (_historyComboBox.Items.Count > 0)
+            {
+                _historyComboBox.SelectedIndex = 0;
+            }
+
+            var connectButton = CreateDialogButton("连接", PageChrome.AccentGreen, true);
             connectButton.Click += (_, _) => Confirm();
 
-            var cancelButton = PageChrome.CreateActionButton("取消", PageChrome.SurfaceBorder, false);
-            cancelButton.AutoSize = false;
-            cancelButton.Size = new Size(86, 36);
+            var cancelButton = CreateDialogButton("取消", PageChrome.SurfaceBorder, false);
             cancelButton.Click += (_, _) =>
             {
                 DialogResult = DialogResult.Cancel;
@@ -839,7 +1077,7 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
                 FlowDirection = FlowDirection.RightToLeft,
                 BackColor = Color.Transparent,
                 Margin = Padding.Empty,
-                Padding = Padding.Empty
+                Padding = new Padding(0, 18, 0, 0)
             };
             actions.Controls.Add(connectButton);
             actions.Controls.Add(cancelButton);
@@ -849,15 +1087,17 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
                 Dock = DockStyle.Fill,
                 BackColor = Color.Transparent,
                 ColumnCount = 2,
-                RowCount = 4,
-                Padding = new Padding(20, 18, 20, 18)
+                RowCount = 6,
+                Padding = new Padding(26, 26, 26, 24)
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82F));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86F));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
 
             var tipLabel = new Label
             {
@@ -868,11 +1108,13 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
             };
             layout.Controls.Add(tipLabel, 0, 0);
             layout.SetColumnSpan(tipLabel, 2);
-            layout.Controls.Add(CreateDialogLabel("设备地址"), 0, 1);
-            layout.Controls.Add(_hostTextBox, 1, 1);
-            layout.Controls.Add(CreateDialogLabel("端口"), 0, 2);
-            layout.Controls.Add(_portTextBox, 1, 2);
-            layout.Controls.Add(actions, 0, 3);
+            layout.Controls.Add(CreateDialogLabel("最近设备"), 0, 1);
+            layout.Controls.Add(_historyComboBox, 1, 1);
+            layout.Controls.Add(CreateDialogLabel("设备地址"), 0, 2);
+            layout.Controls.Add(_hostTextBox, 1, 2);
+            layout.Controls.Add(CreateDialogLabel("端口"), 0, 3);
+            layout.Controls.Add(_portTextBox, 1, 3);
+            layout.Controls.Add(actions, 0, 5);
             layout.SetColumnSpan(actions, 2);
 
             Controls.Add(layout);
@@ -881,6 +1123,20 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
         public string DeviceHost { get; private set; } = string.Empty;
 
         public int DevicePort { get; private set; }
+
+        private void ApplyHistorySelection()
+        {
+            if (_historyComboBox.SelectedItem is not string endpoint)
+            {
+                return;
+            }
+
+            if (TryParseEndpoint(endpoint, out var host, out var port))
+            {
+                _hostTextBox.Text = host;
+                _portTextBox.Text = port.ToString();
+            }
+        }
 
         private void Confirm()
         {
@@ -927,6 +1183,64 @@ internal sealed class CommunicationDemoPageControl : UserControl, IInteractiveRe
                 Margin = new Padding(0, 4, 0, 8),
                 Text = text
             };
+        }
+
+        private static Button CreateDialogButton(string text, Color accent, bool filled)
+        {
+            var button = new Button
+            {
+                AutoEllipsis = false,
+                AutoSize = false,
+                BackColor = filled ? accent : PageChrome.SurfaceRaised,
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
+                ForeColor = PageChrome.TextPrimary,
+                Margin = new Padding(8, 0, 0, 0),
+                Padding = Padding.Empty,
+                Size = new Size(104, 42),
+                Text = text,
+                TextAlign = ContentAlignment.MiddleCenter,
+                UseCompatibleTextRendering = true,
+                UseVisualStyleBackColor = false
+            };
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = Color.FromArgb(filled ? 160 : 88, accent);
+            button.FlatAppearance.MouseOverBackColor = filled
+                ? PageChrome.MixColor(accent, Color.White, 0.12f)
+                : Color.FromArgb(36, accent);
+            button.FlatAppearance.MouseDownBackColor = filled
+                ? PageChrome.MixColor(accent, Color.Black, 0.12f)
+                : Color.FromArgb(58, accent);
+            return button;
+        }
+
+        private static ComboBox CreateDialogComboBox(IReadOnlyList<string> recentDevices)
+        {
+            var comboBox = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                BackColor = PageChrome.InputBackground,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Microsoft YaHei UI", 9F),
+                ForeColor = PageChrome.TextPrimary,
+                Margin = new Padding(0, 4, 0, 8),
+                Enabled = recentDevices.Count > 0
+            };
+
+            if (recentDevices.Count == 0)
+            {
+                comboBox.Items.Add("暂无历史连接");
+                return comboBox;
+            }
+
+            foreach (var device in recentDevices)
+            {
+                comboBox.Items.Add(device);
+            }
+
+            return comboBox;
         }
     }
 
